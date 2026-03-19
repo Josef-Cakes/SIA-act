@@ -84,8 +84,12 @@ export const uploadProfilePhoto = async (userId, imageFile) => {
   const formData = new FormData();
   formData.append('file', imageFile);
 
+  const session = getUserSession();
   const response = await api.post(`/user/photo/${userId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      'X-User-Id': String(session?.id ?? ''),
+    },
   });
   return response.data;
 };
@@ -103,16 +107,19 @@ export const getProfilePhotoUrl = (userId) => {
 // =============================================
 
 export const saveUserSession = (user) => {
-  localStorage.setItem('authUser', JSON.stringify(user));
+  const serialized = JSON.stringify(user);
+  localStorage.setItem('authUser', serialized);
+  localStorage.setItem('user_data', serialized);
 };
 
 export const getUserSession = () => {
-  const stored = localStorage.getItem('authUser');
+  const stored = localStorage.getItem('user_data') || localStorage.getItem('authUser');
   return stored ? JSON.parse(stored) : null;
 };
 
 export const clearUserSession = () => {
   localStorage.removeItem('authUser');
+  localStorage.removeItem('user_data');
 };
 
 export default api;

@@ -88,7 +88,13 @@ public class UserController {
     @PostMapping("/photo/{userId}")
     public ResponseEntity<ApiResponse<UserResponse>> uploadPhoto(
             @PathVariable Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) Long authenticatedUserId,
             @RequestParam("file") MultipartFile file) {
+        if (authenticatedUserId == null || !authenticatedUserId.equals(userId)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.failure("Unauthorized upload request."));
+        }
+
         try {
             ApiResponse<UserResponse> response = userService.uploadProfileImage(userId, file);
 

@@ -196,13 +196,16 @@ public class UserService {
     // HELPER: Convert User entity -> UserResponse DTO
     // =============================================
     private UserResponse toUserResponse(User user) {
+        boolean hasProfileImage = user.getProfileImage() != null && user.getProfileImage().length > 0;
+
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
-                .hasProfileImage(user.getProfileImage() != null && user.getProfileImage().length > 0)
+            .hasProfileImage(hasProfileImage)
+            .profilePhotoUrl(hasProfileImage ? "/api/user/photo/" + user.getId() : null)
                 .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null)
                 .build();
     }

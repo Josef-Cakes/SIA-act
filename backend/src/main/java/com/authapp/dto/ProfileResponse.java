@@ -9,13 +9,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserResponse {
+public class ProfileResponse {
     private Long id;
-    private String username;
     private String email;
-    private String fullName;
-    private String phone;
-    private boolean hasProfileImage;
-    private String profilePhotoUrl;
-    private String createdAt;
+    private String username;
+    private String bio;
+    private String role;
+    private String avatarUrl;
 }

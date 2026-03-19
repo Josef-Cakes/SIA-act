@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerUser, saveUserSession } from './authService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Register() {
   const navigate = useNavigate();
+  const { updateCachedUser } = useAuth();
 
   const [form, setForm] = useState({
     username: '',
@@ -28,6 +30,8 @@ export default function Register() {
       newErrors.username = 'Username must be at least 3 characters.';
     } else if (form.username.trim().length > 50) {
       newErrors.username = 'Username must not exceed 50 characters.';
+    } else if (!/^[a-zA-Z0-9._]+$/.test(form.username.trim())) {
+      newErrors.username = 'Usernames can contain letters, numbers, underscores, and dots.';
     }
 
     if (!form.email.trim()) {
@@ -83,6 +87,7 @@ export default function Register() {
       if (response.success) {
         // Save session and redirect to dashboard
         saveUserSession(response.data);
+        updateCachedUser(response.data);
         navigate('/dashboard');
       } else {
         setServerError(response.message || 'Registration failed. Please try again.');

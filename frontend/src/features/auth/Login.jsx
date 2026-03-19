@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { loginUser, saveUserSession } from './authService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { updateCachedUser } = useAuth();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
@@ -51,6 +53,7 @@ export default function Login() {
       if (response.success) {
         // Save user details to session (no JWT needed)
         saveUserSession(response.data);
+        updateCachedUser(response.data);
         navigate('/dashboard');
       } else {
         // Spring Boot returned success: false

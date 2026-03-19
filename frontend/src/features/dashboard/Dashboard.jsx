@@ -1,36 +1,71 @@
 // src/features/dashboard/Dashboard.jsx
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getUserSession, clearUserSession, getProfilePhotoUrl, getProfile } from '../auth/authService';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { clearUserSession, getProfilePhotoUrl } from '../auth/authService';
+import { useAuth } from '../../context/AuthContext';
+
+function toTitleCase(value) {
+  if (!value || typeof value !== 'string') return '';
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [profileData, setProfileData] = useState(null);
+  const location = useLocation();
+  const { user, fetchProfile, clearUser } = useAuth();
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  const navItems = [
+    { label: 'Dashboard', icon: '⊞', path: '/dashboard' },
+    { label: 'Profile', icon: '◉', path: '/user-management' },
+    { label: 'Settings', icon: '⚙', path: null },
+  ];
 
   useEffect(() => {
-    const session = getUserSession();
-    if (!session) {
+    if (!user) {
       navigate('/login');
       return;
     }
-    setUser(session);
 
-    // Optionally fetch fresh profile from API
-    getProfile(session.id)
-      .then((res) => { if (res.success) setProfileData(res.data); })
-      .catch(() => {}); // Silently fail - use session data
-  }, [navigate]);
+    void fetchProfile({ force: false, revalidate: true, silent: true });
+  }, [user?.id, navigate, fetchProfile]);
 
   const handleLogout = () => {
+    clearUser();
     clearUserSession();
     navigate('/login');
   };
 
-  if (!user) return null;
+  const resolveAvatarUrl = (url) => {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('/')) return `http://localhost:8080${url}`;
+    return `http://localhost:8080/${url}`;
+  };
 
-  const displayName = profileData?.fullName || user.fullName || user.username;
-  const avatarUrl = user.hasProfileImage ? getProfilePhotoUrl(user.id) : null;
+  if (!user) {
+    return (
+      <div style={styles.page}>
+        <main style={styles.main}>
+          <header style={styles.header}>
+            <div>
+              <h1 style={styles.headerTitle}>Dashboard</h1>
+              <p style={styles.headerSub}>Welcome back!</p>
+            </div>
+          </header>
+        </main>
+      </div>
+    );
+  }
+
+  const rawDisplayName = user.fullName || user.username || '';
+  const displayName = toTitleCase(rawDisplayName);
+  const welcomeMessage = displayName ? `Welcome back, ${displayName}!` : 'Welcome back!';
+  const avatarUrl = resolveAvatarUrl(user?.profilePhotoUrl)
+    || (user?.hasProfileImage ? getProfilePhotoUrl(user.id) : null);
 
   return (
     <div style={styles.page}>
@@ -42,19 +77,27 @@ export default function Dashboard() {
         </div>
 
         <nav style={styles.nav}>
-          {['Dashboard', 'Profile', 'Settings'].map((item) => (
-            <div
-              key={item}
+          {navItems.map((item) => (
+            <button
+              type="button"
+              key={item.label}
+              onClick={() => {
+                if (item.path) {
+                  navigate(item.path);
+                  return;
+                }
+                console.info('Settings route is not implemented yet.');
+              }}
               style={{
                 ...styles.navItem,
-                ...(item === 'Dashboard' ? styles.navItemActive : {}),
+                ...(item.path && location.pathname === item.path ? styles.navItemActive : {}),
               }}
             >
               <span style={styles.navIcon}>
-                {item === 'Dashboard' ? '⊞' : item === 'Profile' ? '◉' : '⚙'}
+                {item.icon}
               </span>
-              {item}
-            </div>
+              {item.label}
+            </button>
           ))}
         </nav>
 
@@ -69,15 +112,17 @@ export default function Dashboard() {
         <header style={styles.header}>
           <div>
             <h1 style={styles.headerTitle}>Dashboard</h1>
-            <p style={styles.headerSub}>Welcome back, {displayName}!</p>
+            <p style={styles.headerSub}>{welcomeMessage}</p>
           </div>
           <div style={styles.avatar}>
-            {avatarUrl ? (
+            {avatarUrl && !avatarLoadError ? (
               <img
                 src={avatarUrl}
                 alt="Profile"
                 style={styles.avatarImg}
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={() => {
+                  setAvatarLoadError(true);
+                }}
               />
             ) : (
               <span style={styles.avatarInitial}>
@@ -127,9 +172,6 @@ export default function Dashboard() {
           <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span>
           <div>
             <p style={styles.successTitle}>Login Successful</p>
-            <p style={styles.successSub}>
-              You are authenticated via Spring Boot + Supabase PostgreSQL. No JWT token was used.
-            </p>
           </div>
         </div>
       </main>
@@ -176,6 +218,7 @@ const styles = {
   brandName: { fontSize: '16px', fontWeight: '700', color: '#fff' },
   nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
   navItem: {
+    width: '100%',
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
@@ -184,6 +227,9 @@ const styles = {
     fontSize: '14px',
     color: '#666',
     cursor: 'pointer',
+    border: 'none',
+    background: 'transparent',
+    textAlign: 'left',
   },
   navItemActive: {
     background: 'rgba(99,102,241,0.15)',
