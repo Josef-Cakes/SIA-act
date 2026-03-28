@@ -57,31 +57,33 @@ export default function AvatarUpload({ initialUrl, onUpload }: AvatarUploadProps
   }
 
   return (
-    <div className="rounded-2xl border border-white/20 bg-white/10 p-5 shadow-lg backdrop-blur-md">
+    <div className="rounded-container border border-white/10 bg-deep-slate p-6 shadow-elevated">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-100">Profile Photo</h3>
+        <h3 className="text-sm font-semibold text-white">Profile Photo</h3>
         <button
           type="button"
           onClick={openPicker}
-          className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-midnight-navy px-3 py-1.5 text-xs text-white hover:bg-white/10 transition-colors"
         >
           <Camera className="h-3.5 w-3.5" />
           Edit
         </button>
       </div>
 
-      <div className="mt-4 flex flex-col items-center gap-4">
-        <div className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-cyan-300/60 bg-slate-800/70">
+      {/* Avatar Preview */}
+      <div className="mt-5 flex flex-col items-center gap-4">
+        <div className="relative h-28 w-28 overflow-hidden rounded-full border-2 border-veridian-emerald/50 bg-midnight-navy">
           {avatarSrc ? (
             <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-slate-300">No Image</div>
+            <div className="flex h-full w-full items-center justify-center text-sm text-slate-caption">No Image</div>
           )}
 
           <button
             type="button"
             onClick={openPicker}
-            className="absolute bottom-1 right-1 rounded-full bg-cyan-500 p-2 text-slate-950 shadow hover:bg-cyan-400"
+            className="absolute bottom-1 right-1 rounded-full bg-veridian-emerald p-2 text-white shadow hover:brightness-110 transition-all"
             aria-label="Edit profile photo"
           >
             <Camera className="h-3.5 w-3.5" />
@@ -92,26 +94,31 @@ export default function AvatarUpload({ initialUrl, onUpload }: AvatarUploadProps
 
         {selectedFile ? (
           <div className="w-full max-w-xs space-y-3">
-            <p className="truncate text-center text-xs text-slate-200">{selectedFile.name}</p>
+            <p className="truncate text-center text-xs text-slate-caption">{selectedFile.name}</p>
 
+            {/* Progress Bar */}
             {progress > 0 ? (
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-700">
-                <div className="h-2 rounded-full bg-cyan-400 transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-midnight-navy">
+                <div
+                  className="h-2 rounded-full bg-veridian-emerald transition-all"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             ) : null}
 
+            {/* Upload Button */}
             <button
               type="button"
               disabled={isUploading}
               onClick={handleUpload}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+              className="veridian-btn-primary w-full inline-flex items-center justify-center gap-2"
             >
               {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {isUploading ? 'Uploading...' : 'Upload Photo'}
             </button>
           </div>
         ) : (
-          <p className="text-xs text-slate-300">PNG or JPG recommended, max 5MB.</p>
+          <p className="text-xs text-slate-caption">PNG or JPG recommended, max 5MB.</p>
         )}
       </div>
     </div>

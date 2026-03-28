@@ -1,12 +1,13 @@
 // src/features/auth/Register.jsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { registerUser, saveUserSession } from './authService';
+import { AlertTriangle, Loader2, Leaf, Check } from 'lucide-react';
+import { registerUser } from './authService';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { updateCachedUser } = useAuth();
+  const { applyAuthenticatedUser } = useAuth();
 
   const [form, setForm] = useState({
     username: '',
@@ -20,7 +21,23 @@ export default function Register() {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ── Field-level validation ──────────────────────────────────
+  const routeByRole = (role) => {
+    const normalizedRole = typeof role === 'string' ? role.toUpperCase() : '';
+
+    if (normalizedRole === 'ROLE_ADMIN' || normalizedRole === 'ADMIN') {
+      navigate('/admin');
+      return;
+    }
+
+    if (normalizedRole === 'ROLE_HANDLER' || normalizedRole === 'HANDLER') {
+      navigate('/mobile');
+      return;
+    }
+
+    navigate('/dashboard');
+  };
+
+  // Field-level validation
   const validate = () => {
     const newErrors = {};
 
@@ -49,7 +66,6 @@ export default function Register() {
     if (!form.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password.';
     } else if (form.password !== form.confirmPassword) {
-      // ── KEY REQUIREMENT: password === confirmPassword check ──
       newErrors.confirmPassword = 'Passwords do not match.';
     }
 
@@ -64,11 +80,10 @@ export default function Register() {
     if (serverError) setServerError('');
   };
 
-  // ── Submit handler ──────────────────────────────────────────
+  // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate ALL fields including password match BEFORE calling API
     if (!validate()) return;
 
     setLoading(true);
@@ -79,16 +94,14 @@ export default function Register() {
         username: form.username.trim(),
         email: form.email.trim(),
         fullName: form.fullName.trim(),
-        password: form.password,  // confirmPassword is NOT sent to API
+        password: form.password,
       };
 
       const response = await registerUser(payload);
 
       if (response.success) {
-        // Save session and redirect to dashboard
-        saveUserSession(response.data);
-        updateCachedUser(response.data);
-        navigate('/dashboard');
+        const authenticatedUser = await applyAuthenticatedUser(response.data);
+        routeByRole(authenticatedUser?.role || response.data?.role);
       } else {
         setServerError(response.message || 'Registration failed. Please try again.');
       }
@@ -96,7 +109,6 @@ export default function Register() {
       if (err.response) {
         const msg = err.response.data?.message;
         if (err.response.status === 409) {
-          // Conflict – user already exists
           setServerError(msg || 'An account with this email or username already exists.');
         } else {
           setServerError(msg || 'Registration failed. Please try again.');
@@ -114,42 +126,50 @@ export default function Register() {
   const passwordStrength = () => {
     const p = form.password;
     if (!p) return null;
-    if (p.length < 6) return { label: 'Weak', color: '#ef4444', width: '33%' };
-    if (p.length < 10) return { label: 'Medium', color: '#f59e0b', width: '66%' };
-    return { label: 'Strong', color: '#10b981', width: '100%' };
+    if (p.length < 6) return { label: 'Weak', color: 'bg-veridian-rose', textColor: 'text-veridian-rose', width: '33%' };
+    if (p.length < 10) return { label: 'Medium', color: 'bg-veridian-amber', textColor: 'text-veridian-amber', width: '66%' };
+    return { label: 'Strong', color: 'bg-veridian-emerald', textColor: 'text-veridian-emerald', width: '100%' };
   };
 
   const strength = passwordStrength();
+  const passwordsMatch = form.confirmPassword && !errors.confirmPassword && form.password === form.confirmPassword;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.bgAccent1} />
-      <div style={styles.bgAccent2} />
+    <div className="min-h-screen flex items-center justify-center bg-midnight-navy font-sans relative overflow-hidden px-4 py-10">
+      {/* Background Accents */}
+      <div className="fixed -top-24 -right-24 w-96 h-96 rounded-full bg-veridian-emerald/10 blur-3xl pointer-events-none" />
+      <div className="fixed -bottom-20 -left-20 w-72 h-72 rounded-full bg-veridian-sky/10 blur-3xl pointer-events-none" />
 
-      <div style={styles.card}>
+      {/* Register Card */}
+      <div className="w-full max-w-md bg-deep-slate border border-white/10 rounded-container p-10 relative z-10 shadow-card animate-fade-in">
         {/* Brand */}
-        <div style={styles.brand}>
-          <div style={styles.logoRing}>
-            <span style={styles.logoIcon}>⬡</span>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-input bg-veridian-emerald flex items-center justify-center">
+            <Leaf className="w-5 h-5 text-white" />
           </div>
-          <h1 style={styles.brandName}>Farm Ville</h1>
+          <h1 className="text-xl font-semibold text-white tracking-tight">Farm Ville</h1>
         </div>
 
-        <h2 style={styles.title}>Create your account</h2>
-        <p style={styles.subtitle}>Join us today — it's free and quick</p>
+        <h2 className="text-2xl font-semibold text-white mb-2">Create your account</h2>
+        <p className="text-slate-caption text-sm mb-6">Join us today — it's free and quick</p>
 
-        {/* Server error banner */}
+        {/* Server Error Banner */}
         {serverError && (
-          <div style={styles.errorBanner} role="alert">
-            <span style={styles.errorIcon}>⚠</span>
-            <span>{serverError}</span>
+          <div
+            className="flex items-center gap-3 bg-veridian-rose/10 border border-veridian-rose/30 rounded-input p-4 mb-6"
+            role="alert"
+          >
+            <AlertTriangle className="w-5 h-5 text-veridian-rose flex-shrink-0" />
+            <span className="text-veridian-rose text-sm">{serverError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} noValidate style={styles.form}>
-          {/* Username */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="reg-username">Username <span style={styles.required}>*</span></label>
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
+          {/* Username Field */}
+          <div className="space-y-2">
+            <label htmlFor="reg-username" className="veridian-label">
+              Username <span className="text-veridian-rose">*</span>
+            </label>
             <input
               id="reg-username"
               name="username"
@@ -158,16 +178,16 @@ export default function Register() {
               placeholder="johndoe"
               value={form.username}
               onChange={handleChange}
-              style={{ ...styles.input, ...(errors.username ? styles.inputError : {}) }}
               disabled={loading}
+              className={`veridian-input ${errors.username ? 'border-veridian-rose' : ''}`}
             />
-            {errors.username && <p style={styles.fieldError}>{errors.username}</p>}
+            {errors.username && <p className="veridian-error">{errors.username}</p>}
           </div>
 
-          {/* Full Name */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="reg-fullname">
-              Full Name <span style={styles.optional}>(optional)</span>
+          {/* Full Name Field */}
+          <div className="space-y-2">
+            <label htmlFor="reg-fullname" className="veridian-label">
+              Full Name <span className="text-slate-caption/60 text-xs">(optional)</span>
             </label>
             <input
               id="reg-fullname"
@@ -177,14 +197,16 @@ export default function Register() {
               placeholder="John Doe"
               value={form.fullName}
               onChange={handleChange}
-              style={styles.input}
               disabled={loading}
+              className="veridian-input"
             />
           </div>
 
-          {/* Email */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="reg-email">Email <span style={styles.required}>*</span></label>
+          {/* Email Field */}
+          <div className="space-y-2">
+            <label htmlFor="reg-email" className="veridian-label">
+              Email <span className="text-veridian-rose">*</span>
+            </label>
             <input
               id="reg-email"
               name="email"
@@ -193,15 +215,17 @@ export default function Register() {
               placeholder="you@example.com"
               value={form.email}
               onChange={handleChange}
-              style={{ ...styles.input, ...(errors.email ? styles.inputError : {}) }}
               disabled={loading}
+              className={`veridian-input ${errors.email ? 'border-veridian-rose' : ''}`}
             />
-            {errors.email && <p style={styles.fieldError}>{errors.email}</p>}
+            {errors.email && <p className="veridian-error">{errors.email}</p>}
           </div>
 
-          {/* Password */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="reg-password">Password <span style={styles.required}>*</span></label>
+          {/* Password Field */}
+          <div className="space-y-2">
+            <label htmlFor="reg-password" className="veridian-label">
+              Password <span className="text-veridian-rose">*</span>
+            </label>
             <input
               id="reg-password"
               name="password"
@@ -210,24 +234,29 @@ export default function Register() {
               placeholder="Min. 6 characters"
               value={form.password}
               onChange={handleChange}
-              style={{ ...styles.input, ...(errors.password ? styles.inputError : {}) }}
               disabled={loading}
+              className={`veridian-input ${errors.password ? 'border-veridian-rose' : ''}`}
             />
-            {/* Password strength indicator */}
+            {/* Password Strength Indicator */}
             {strength && (
-              <div style={styles.strengthWrapper}>
-                <div style={styles.strengthBar}>
-                  <div style={{ ...styles.strengthFill, width: strength.width, background: strength.color }} />
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${strength.color}`}
+                    style={{ width: strength.width }}
+                  />
                 </div>
-                <span style={{ ...styles.strengthLabel, color: strength.color }}>{strength.label}</span>
+                <span className={`text-xs font-semibold ${strength.textColor}`}>{strength.label}</span>
               </div>
             )}
-            {errors.password && <p style={styles.fieldError}>{errors.password}</p>}
+            {errors.password && <p className="veridian-error">{errors.password}</p>}
           </div>
 
-          {/* Confirm Password */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="reg-confirm">Confirm Password <span style={styles.required}>*</span></label>
+          {/* Confirm Password Field */}
+          <div className="space-y-2">
+            <label htmlFor="reg-confirm" className="veridian-label">
+              Confirm Password <span className="text-veridian-rose">*</span>
+            </label>
             <input
               id="reg-confirm"
               name="confirmPassword"
@@ -236,178 +265,44 @@ export default function Register() {
               placeholder="Re-enter password"
               value={form.confirmPassword}
               onChange={handleChange}
-              style={{ ...styles.input, ...(errors.confirmPassword ? styles.inputError : {}) }}
               disabled={loading}
+              className={`veridian-input ${errors.confirmPassword ? 'border-veridian-rose' : ''}`}
             />
-            {/* Password match status */}
-            {form.confirmPassword && !errors.confirmPassword && form.password === form.confirmPassword && (
-              <p style={{ ...styles.fieldError, color: '#10b981' }}>✓ Passwords match</p>
+            {/* Password Match Indicator */}
+            {passwordsMatch && (
+              <p className="flex items-center gap-1 text-veridian-emerald text-sm">
+                <Check className="w-4 h-4" />
+                Passwords match
+              </p>
             )}
-            {errors.confirmPassword && <p style={styles.fieldError}>{errors.confirmPassword}</p>}
+            {errors.confirmPassword && <p className="veridian-error">{errors.confirmPassword}</p>}
           </div>
 
-          {/* Submit */}
-          <button type="submit" style={styles.submitBtn} disabled={loading}>
-            {loading ? <span style={styles.spinner} /> : 'Create Account'}
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full veridian-btn-primary flex items-center justify-center gap-2 mt-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Creating account...</span>
+              </>
+            ) : (
+              'Create Account'
+            )}
           </button>
         </form>
 
-        <p style={styles.switchText}>
+        {/* Switch to Login */}
+        <p className="text-center mt-6 text-slate-caption text-sm">
           Already have an account?{' '}
-          <Link to="/login" style={styles.link}>Sign in</Link>
+          <Link to="/login" className="veridian-link">
+            Sign in
+          </Link>
         </p>
       </div>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#0a0a0f',
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    position: 'relative',
-    overflow: 'hidden',
-    padding: '40px 20px',
-  },
-  bgAccent1: {
-    position: 'fixed',
-    top: '-100px',
-    right: '-100px',
-    width: '400px',
-    height: '400px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  bgAccent2: {
-    position: 'fixed',
-    bottom: '-80px',
-    left: '-80px',
-    width: '300px',
-    height: '300px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '440px',
-    background: '#13131a',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '20px',
-    padding: '44px 40px',
-    position: 'relative',
-    zIndex: 1,
-    boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '24px',
-  },
-  logoRing: {
-    width: '38px',
-    height: '38px',
-    borderRadius: '10px',
-    background: 'linear-gradient(135deg, #6366f1, #10b981)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoIcon: { fontSize: '18px', color: '#fff' },
-  brandName: {
-    fontSize: '20px',
-    fontWeight: '700',
-    color: '#fff',
-    margin: 0,
-    letterSpacing: '-0.3px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: '700',
-    color: '#fff',
-    margin: '0 0 6px',
-    letterSpacing: '-0.5px',
-  },
-  subtitle: { fontSize: '14px', color: '#666', margin: '0 0 24px' },
-  errorBanner: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    background: 'rgba(239,68,68,0.12)',
-    border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: '10px',
-    padding: '12px 16px',
-    marginBottom: '18px',
-    color: '#f87171',
-    fontSize: '14px',
-  },
-  errorIcon: { fontSize: '16px', flexShrink: 0 },
-  form: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  fieldGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '13px', fontWeight: '500', color: '#aaa', letterSpacing: '0.2px' },
-  required: { color: '#f87171' },
-  optional: { color: '#555', fontSize: '11px' },
-  input: {
-    background: '#1c1c27',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '10px',
-    padding: '12px 16px',
-    color: '#fff',
-    fontSize: '15px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  inputError: { borderColor: 'rgba(239,68,68,0.5)' },
-  fieldError: { fontSize: '12px', color: '#f87171', margin: 0 },
-  strengthWrapper: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginTop: '4px',
-  },
-  strengthBar: {
-    flex: 1,
-    height: '4px',
-    background: 'rgba(255,255,255,0.08)',
-    borderRadius: '99px',
-    overflow: 'hidden',
-  },
-  strengthFill: {
-    height: '100%',
-    borderRadius: '99px',
-    transition: 'width 0.3s ease, background 0.3s ease',
-  },
-  strengthLabel: { fontSize: '11px', fontWeight: '600', minWidth: '44px' },
-  submitBtn: {
-    marginTop: '6px',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '10px',
-    padding: '14px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    letterSpacing: '0.2px',
-  },
-  spinner: {
-    width: '18px',
-    height: '18px',
-    border: '2px solid rgba(255,255,255,0.3)',
-    borderTop: '2px solid #fff',
-    borderRadius: '50%',
-    display: 'inline-block',
-  },
-  switchText: { textAlign: 'center', marginTop: '22px', fontSize: '14px', color: '#666' },
-  link: { color: '#818cf8', textDecoration: 'none', fontWeight: '500' },
-};

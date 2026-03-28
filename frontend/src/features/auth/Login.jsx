@@ -1,26 +1,31 @@
 // src/features/auth/Login.jsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { loginUser, saveUserSession } from './authService';
+import { AlertTriangle, Loader2, Leaf, UserRound, Shield } from 'lucide-react';
+import { loginUser } from './authService';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { updateCachedUser } = useAuth();
+  const { applyAuthenticatedUser } = useAuth();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ── Field-level validation ──────────────────────────────────
+  // Field-level validation (username-based)
   const validate = () => {
     const newErrors = {};
 
-    if (!form.email.trim()) {
-      newErrors.email = 'Email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      newErrors.email = 'Please enter a valid email address.';
+    if (!form.username.trim()) {
+      newErrors.username = 'Username is required.';
+    } else if (form.username.trim().length < 3) {
+      newErrors.username = 'Username must be at least 3 characters.';
+    } else if (form.username.trim().length > 50) {
+      newErrors.username = 'Username must not exceed 50 characters.';
+    } else if (!/^[a-zA-Z0-9._]+$/.test(form.username.trim())) {
+      newErrors.username = 'Username can only contain letters, numbers, underscores, and dots.';
     }
 
     if (!form.password.trim()) {
@@ -34,12 +39,29 @@ export default function Login() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-    // Clear field error on change
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
     if (serverError) setServerError('');
   };
 
-  // ── Submit handler ──────────────────────────────────────────
+  /**
+   * Route user based on their role after successful login.
+   * ROLE_ADMIN → /admin (Command Center)
+   * ROLE_HANDLER → /mobile (Field Handler App)
+   */
+  const routeByRole = (role) => {
+    const normalizedRole = typeof role === 'string' ? role.toUpperCase() : '';
+
+    if (normalizedRole === 'ROLE_ADMIN' || normalizedRole === 'ADMIN') {
+      navigate('/admin');
+    } else if (normalizedRole === 'ROLE_HANDLER' || normalizedRole === 'HANDLER') {
+      navigate('/mobile');
+    } else {
+      // Fallback to dashboard for unknown roles
+      navigate('/dashboard');
+    }
+  };
+
+  // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
@@ -48,22 +70,21 @@ export default function Login() {
     setServerError('');
 
     try {
-      const response = await loginUser({ email: form.email, password: form.password });
+      const response = await loginUser({ username: form.username, password: form.password });
 
       if (response.success) {
-        // Save user details to session (no JWT needed)
-        saveUserSession(response.data);
-        updateCachedUser(response.data);
-        navigate('/dashboard');
+        const authenticatedUser = await applyAuthenticatedUser(response.data);
+
+        // Route based on user role
+        const userRole = authenticatedUser?.role || response.data.role;
+        routeByRole(userRole);
       } else {
-        // Spring Boot returned success: false
-        setServerError(response.message || 'Invalid credentials. Please try again.');
+        setServerError(response.message || 'Invalid username or password.');
       }
     } catch (err) {
       if (err.response) {
-        // HTTP error response from Spring Boot
         const msg = err.response.data?.message;
-        setServerError(msg || 'Invalid credentials. Please try again.');
+        setServerError(msg || 'Invalid username or password.');
       } else if (err.request) {
         setServerError('Cannot connect to the server. Please try again later.');
       } else {
@@ -75,261 +96,111 @@ export default function Login() {
   };
 
   return (
-    <div style={styles.page}>
-      {/* Background accents */}
-      <div style={styles.bgAccent1} />
-      <div style={styles.bgAccent2} />
+    <div className="min-h-screen flex items-center justify-center bg-midnight-navy font-sans relative overflow-hidden px-4 py-8">
+      {/* Background Accents */}
+      <div className="fixed -top-32 -left-32 w-96 h-96 rounded-full bg-veridian-emerald/10 blur-3xl pointer-events-none" />
+      <div className="fixed -bottom-24 -right-24 w-80 h-80 rounded-full bg-veridian-sky/10 blur-3xl pointer-events-none" />
 
-      <div style={styles.card}>
-        {/* Logo / Brand */}
-        <div style={styles.brand}>
-          <div style={styles.logoRing}>
-            <span style={styles.logoIcon}>⬡</span>
+      {/* Login Card */}
+      <div className="w-full max-w-md bg-deep-slate border border-white/10 rounded-container p-10 relative z-10 shadow-card animate-fade-in">
+        {/* Brand */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-input bg-veridian-emerald flex items-center justify-center">
+            <Leaf className="w-5 h-5 text-white" />
           </div>
-          <h1 style={styles.brandName}>Farm Ville</h1>
+          <h1 className="text-xl font-semibold text-white tracking-tight">Farm Ville</h1>
         </div>
 
-        <h2 style={styles.title}>Welcome back</h2>
-        <p style={styles.subtitle}>Sign in to your account to continue</p>
+        <h2 className="text-2xl font-semibold text-white mb-2">Welcome back</h2>
+        <p className="text-slate-caption text-sm mb-8">Sign in to your account to continue</p>
 
-        {/* Server-level error banner */}
+        {/* Server Error Banner */}
         {serverError && (
-          <div style={styles.errorBanner} role="alert">
-            <span style={styles.errorIcon}>⚠</span>
-            <span>{serverError}</span>
+          <div
+            className="flex items-center gap-3 bg-veridian-rose/10 border border-veridian-rose/30 rounded-input p-4 mb-6"
+            role="alert"
+          >
+            <AlertTriangle className="w-5 h-5 text-veridian-rose flex-shrink-0" />
+            <span className="text-veridian-rose text-sm">{serverError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} noValidate style={styles.form}>
-          {/* Email */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="login-email">Email</label>
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          {/* Username Field */}
+          <div className="space-y-2">
+            <label htmlFor="login-username" className="veridian-label flex items-center gap-2">
+              <UserRound className="w-4 h-4 text-veridian-emerald" />
+              Username
+            </label>
             <input
-              id="login-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={form.email}
+              id="login-username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              placeholder="e.g., sef_farm01"
+              value={form.username}
               onChange={handleChange}
-              style={{
-                ...styles.input,
-                ...(errors.email ? styles.inputError : {}),
-              }}
               disabled={loading}
+              className={`veridian-input ${errors.username ? 'border-veridian-rose' : ''}`}
             />
-            {errors.email && <p style={styles.fieldError}>{errors.email}</p>}
+            {errors.username && <p className="veridian-error">{errors.username}</p>}
           </div>
 
-          {/* Password */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="login-password">Password</label>
+          {/* Password Field */}
+          <div className="space-y-2">
+            <label htmlFor="login-password" className="veridian-label">
+              Password
+            </label>
             <input
               id="login-password"
               name="password"
               type="password"
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={form.password}
               onChange={handleChange}
-              style={{
-                ...styles.input,
-                ...(errors.password ? styles.inputError : {}),
-              }}
               disabled={loading}
+              className={`veridian-input ${errors.password ? 'border-veridian-rose' : ''}`}
             />
-            {errors.password && <p style={styles.fieldError}>{errors.password}</p>}
+            {errors.password && <p className="veridian-error">{errors.password}</p>}
           </div>
 
-          {/* Submit button */}
-          <button type="submit" style={styles.submitBtn} disabled={loading}>
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full veridian-btn-primary flex items-center justify-center gap-2"
+          >
             {loading ? (
-              <span style={styles.spinner} />
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Signing in...</span>
+              </>
             ) : (
               'Sign In'
             )}
           </button>
         </form>
 
-        <p style={styles.switchText}>
+        {/* Switch to Register */}
+        <p className="text-center mt-8 text-slate-caption text-sm">
           Don't have an account?{' '}
-          <Link to="/register" style={styles.link}>
+          <Link to="/register" className="veridian-link">
             Create one
           </Link>
         </p>
+
+        {/* Role Info */}
+        <div className="mt-6 pt-6 border-t border-white/10">
+          <div className="flex items-center gap-2 text-xs text-slate-caption mb-2">
+            <Shield className="w-3.5 h-3.5 text-veridian-emerald" />
+            <span>Role-based access control enabled</span>
+          </div>
+          <p className="text-xs text-slate-caption/70">
+            Admins → Command Center | Handlers → Mobile App
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-
-// ── Styles ──────────────────────────────────────────────────
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#0a0a0f',
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    position: 'relative',
-    overflow: 'hidden',
-    padding: '20px',
-  },
-  bgAccent1: {
-    position: 'fixed',
-    top: '-120px',
-    left: '-120px',
-    width: '400px',
-    height: '400px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  bgAccent2: {
-    position: 'fixed',
-    bottom: '-100px',
-    right: '-100px',
-    width: '350px',
-    height: '350px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(16,185,129,0.13) 0%, transparent 70%)',
-    pointerEvents: 'none',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '420px',
-    background: '#13131a',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '20px',
-    padding: '44px 40px',
-    position: 'relative',
-    zIndex: 1,
-    boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '28px',
-  },
-  logoRing: {
-    width: '38px',
-    height: '38px',
-    borderRadius: '10px',
-    background: 'linear-gradient(135deg, #6366f1, #10b981)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoIcon: {
-    fontSize: '18px',
-    color: '#fff',
-  },
-  brandName: {
-    fontSize: '20px',
-    fontWeight: '700',
-    color: '#fff',
-    margin: 0,
-    letterSpacing: '-0.3px',
-  },
-  title: {
-    fontSize: '26px',
-    fontWeight: '700',
-    color: '#fff',
-    margin: '0 0 6px',
-    letterSpacing: '-0.5px',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#666',
-    margin: '0 0 28px',
-  },
-  errorBanner: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    background: 'rgba(239,68,68,0.12)',
-    border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: '10px',
-    padding: '12px 16px',
-    marginBottom: '20px',
-    color: '#f87171',
-    fontSize: '14px',
-  },
-  errorIcon: {
-    fontSize: '16px',
-    flexShrink: 0,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '18px',
-  },
-  fieldGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  label: {
-    fontSize: '13px',
-    fontWeight: '500',
-    color: '#aaa',
-    letterSpacing: '0.2px',
-  },
-  input: {
-    background: '#1c1c27',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '10px',
-    padding: '12px 16px',
-    color: '#fff',
-    fontSize: '15px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-  inputError: {
-    borderColor: 'rgba(239,68,68,0.5)',
-  },
-  fieldError: {
-    fontSize: '12px',
-    color: '#f87171',
-    margin: 0,
-  },
-  submitBtn: {
-    marginTop: '6px',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '10px',
-    padding: '14px',
-    fontSize: '15px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'opacity 0.2s',
-    letterSpacing: '0.2px',
-  },
-  spinner: {
-    width: '18px',
-    height: '18px',
-    border: '2px solid rgba(255,255,255,0.3)',
-    borderTop: '2px solid #fff',
-    borderRadius: '50%',
-    animation: 'spin 0.7s linear infinite',
-    display: 'inline-block',
-  },
-  switchText: {
-    textAlign: 'center',
-    marginTop: '24px',
-    fontSize: '14px',
-    color: '#666',
-  },
-  link: {
-    color: '#818cf8',
-    textDecoration: 'none',
-    fontWeight: '500',
-  },
-};

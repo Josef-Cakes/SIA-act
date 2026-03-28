@@ -6,7 +6,9 @@ import com.authapp.dto.UpdateProfileRequest;
 import com.authapp.dto.UserResponse;
 import com.authapp.entity.User;
 import com.authapp.repository.UserRepository;
+import com.authapp.security.JwtAuthenticationFilter;
 import com.authapp.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -88,8 +90,13 @@ public class UserController {
     @PostMapping("/photo/{userId}")
     public ResponseEntity<ApiResponse<UserResponse>> uploadPhoto(
             @PathVariable Long userId,
-            @RequestHeader(value = "X-User-Id", required = false) Long authenticatedUserId,
+            HttpServletRequest request,
             @RequestParam("file") MultipartFile file) {
+        Object authenticatedUserIdAttr = request.getAttribute(JwtAuthenticationFilter.AUTHENTICATED_USER_ID_ATTR);
+        Long authenticatedUserId = authenticatedUserIdAttr instanceof Long
+                ? (Long) authenticatedUserIdAttr
+                : null;
+
         if (authenticatedUserId == null || !authenticatedUserId.equals(userId)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.failure("Unauthorized upload request."));

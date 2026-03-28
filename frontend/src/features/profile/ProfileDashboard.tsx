@@ -37,7 +37,7 @@ function resolveProfilePhotoUrl(url?: string): string | undefined {
 
 export default function ProfileDashboard() {
   const navigate = useNavigate();
-  const { user, fetchProfile, updateCachedUser } = useAuth();
+  const { user, updateCachedUser } = useAuth();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -51,6 +51,7 @@ export default function ProfileDashboard() {
     joinDate: formatJoinDate(user?.createdAt),
   });
 
+  // Sync profile state with user context - only update local state, don't fetch
   useEffect(() => {
     if (!user?.id) return;
 
@@ -64,8 +65,7 @@ export default function ProfileDashboard() {
         || (user.hasProfileImage ? getProfilePhotoUrl(user.id) : prev.avatarUrl),
     }));
 
-    void fetchProfile({ force: false, revalidate: true, silent: true });
-  }, [user?.id, user?.fullName, user?.username, user?.email, user?.createdAt, user?.profilePhotoUrl, user?.hasProfileImage, fetchProfile]);
+  }, [user]); // AuthContext owns profile hydration; this effect only mirrors the cached user into local form state
 
   function handleBackToDashboard() {
     if (window.history.length > 1) {
@@ -172,62 +172,76 @@ export default function ProfileDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent px-4 py-8 sm:px-6 lg:px-10">
+    <div className="min-h-screen bg-midnight-navy px-4 py-8 sm:px-6 lg:px-10 font-sans">
       {toast ? <ToastMessage type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
 
       <div className="mx-auto max-w-6xl">
+        {/* Back Button */}
         <button
           type="button"
           onClick={handleBackToDashboard}
-          className="mb-4 inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+          className="mb-6 inline-flex items-center gap-2 rounded-input border border-white/15 bg-deep-slate px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition-colors min-h-touch"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </button>
 
-        <div className="mb-6 rounded-3xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl">
+        {/* Profile Header Card */}
+        <div className="mb-6 rounded-container border border-white/10 bg-deep-slate p-6 shadow-card">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex flex-1 items-start gap-4">
-              <div className="h-20 w-20 overflow-hidden rounded-full border border-cyan-300/40 bg-slate-800/70">
+              {/* Avatar */}
+              <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-veridian-emerald/40 bg-deep-slate">
                 {profile.avatarUrl ? (
                   <img src={profile.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-slate-300">
+                  <div className="flex h-full w-full items-center justify-center text-slate-caption">
                     <UserRound className="h-8 w-8" />
                   </div>
                 )}
               </div>
 
+              {/* User Info */}
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-bold text-white">{profile.fullName}</h1>
-                <p className="mt-1 text-sm text-slate-200">@{profile.username}</p>
-                <div className="mt-3 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
-                  <p className="inline-flex items-center gap-2"><Mail className="h-4 w-4 text-cyan-300" />{profile.email}</p>
-                  <p className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4 text-cyan-300" />Joined {profile.joinDate}</p>
+                <h1 className="truncate text-2xl font-semibold text-white">{profile.fullName}</h1>
+                <p className="mt-1 text-sm text-slate-caption">@{profile.username}</p>
+                <div className="mt-3 grid gap-2 text-sm text-slate-caption sm:grid-cols-2">
+                  <p className="inline-flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-veridian-emerald" />
+                    {profile.email}
+                  </p>
+                  <p className="inline-flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-veridian-emerald" />
+                    Joined {profile.joinDate}
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* Edit Button */}
             <button
               type="button"
               onClick={() => setIsEditingProfile((value) => !value)}
-              className="inline-flex items-center gap-2 self-start rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+              className="inline-flex items-center gap-2 self-start rounded-input border border-white/15 bg-deep-slate px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition-colors min-h-touch"
             >
               <Pencil className="h-4 w-4" />
               {isEditingProfile ? 'Close Edit' : 'Edit Profile'}
             </button>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-300">Bio</p>
-            <p className="mt-2 text-sm text-slate-100">{profile.bio}</p>
+          {/* Bio Section */}
+          <div className="mt-5 rounded-input border border-white/10 bg-midnight-navy p-4">
+            <p className="text-xs uppercase tracking-wider text-slate-caption font-medium">Bio</p>
+            <p className="mt-2 text-sm text-white/90">{profile.bio}</p>
           </div>
         </div>
 
+        {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
-            <section className="rounded-2xl border border-white/20 bg-white/10 p-5 shadow-lg backdrop-blur-md">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-200">Profile Details</h2>
+            {/* Profile Details Section */}
+            <section className="rounded-container border border-white/10 bg-deep-slate p-6 shadow-elevated">
+              <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-slate-caption">Profile Details</h2>
 
               {isEditingProfile ? (
                 <ProfileForm
@@ -240,26 +254,28 @@ export default function ProfileDashboard() {
                   onCancel={() => setIsEditingProfile(false)}
                 />
               ) : (
-                <div className="grid gap-3 text-sm text-slate-100 sm:grid-cols-2">
-                  <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
-                    <p className="text-xs uppercase text-slate-300">Full Name</p>
-                    <p className="mt-1">{profile.fullName}</p>
+                <div className="grid gap-4 text-sm text-white sm:grid-cols-2">
+                  <div className="rounded-input border border-white/10 bg-midnight-navy p-4">
+                    <p className="text-xs uppercase text-slate-caption font-medium">Full Name</p>
+                    <p className="mt-1.5 text-white/90">{profile.fullName}</p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
-                    <p className="text-xs uppercase text-slate-300">Username</p>
-                    <p className="mt-1">{profile.username}</p>
+                  <div className="rounded-input border border-white/10 bg-midnight-navy p-4">
+                    <p className="text-xs uppercase text-slate-caption font-medium">Username</p>
+                    <p className="mt-1.5 text-white/90">{profile.username}</p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3 sm:col-span-2">
-                    <p className="text-xs uppercase text-slate-300">Bio</p>
-                    <p className="mt-1">{profile.bio}</p>
+                  <div className="rounded-input border border-white/10 bg-midnight-navy p-4 sm:col-span-2">
+                    <p className="text-xs uppercase text-slate-caption font-medium">Bio</p>
+                    <p className="mt-1.5 text-white/90">{profile.bio}</p>
                   </div>
                 </div>
               )}
             </section>
 
+            {/* Password Section */}
             <PasswordSection onSubmitPassword={handleChangePassword} />
           </div>
 
+          {/* Avatar Upload Sidebar */}
           <div className="space-y-6">
             <AvatarUpload initialUrl={profile.avatarUrl} onUpload={handleUploadAvatar} />
           </div>

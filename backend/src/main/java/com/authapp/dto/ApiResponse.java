@@ -35,4 +35,13 @@ public class ApiResponse<T> {
                 .message(message)
                 .build();
     }
+
+    /**
+     * Alias for failure() method - returns an error response.
+     * @param message Error message
+     * @return ApiResponse with success=false
+     */
+    public static <T> ApiResponse<T> error(String message) {
+        return failure(message);
+    }
 }

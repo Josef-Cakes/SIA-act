@@ -35,6 +35,12 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;  // Stored as BCrypt hash
 
+    // Role-Based Access Control
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    @Builder.Default
+    private Role role = Role.ROLE_HANDLER;  // Default role for new users
+
     // Profile image stored as BLOB/byte array in DB
     @Column(name = "profile_image", columnDefinition = "bytea")
     private byte[] profileImage;
@@ -58,6 +64,9 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (role == null) {
+            role = Role.ROLE_HANDLER;
+        }
     }
 
     @PreUpdate

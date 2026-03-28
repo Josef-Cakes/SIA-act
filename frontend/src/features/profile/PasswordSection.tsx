@@ -64,77 +64,83 @@ export default function PasswordSection({ onSubmitPassword }: PasswordSectionPro
   const strength = useMemo(() => estimateStrength(newPassword), [newPassword]);
   const isMatch = newPassword.length > 0 && confirmNewPassword.length > 0 && newPassword === confirmNewPassword;
 
+  // Get strength bar color based on score
+  const getStrengthColor = (score: number) => {
+    if (score <= 1) return 'bg-veridian-rose';
+    if (score === 2) return 'bg-veridian-amber';
+    if (score === 3) return 'bg-veridian-emerald';
+    return 'bg-veridian-sky';
+  };
+
   return (
-    <section className="rounded-2xl border border-white/20 bg-white/10 p-5 shadow-lg backdrop-blur-md">
-      <div className="mb-4 flex items-center gap-2">
-        <LockKeyhole className="h-4 w-4 text-cyan-300" />
-        <h3 className="text-sm font-semibold text-slate-100">Change Password</h3>
+    <section className="rounded-container border border-white/10 bg-deep-slate p-6 shadow-elevated">
+      {/* Section Header */}
+      <div className="mb-5 flex items-center gap-2">
+        <LockKeyhole className="h-4 w-4 text-veridian-emerald" />
+        <h3 className="text-sm font-semibold text-white">Change Password</h3>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmitPassword)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmitPassword)} className="space-y-5">
+        {/* Current Password */}
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">Current Password</label>
+          <label className="veridian-label">Current Password</label>
           <input
             type="password"
             {...register('currentPassword')}
-            className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100"
+            className="veridian-input"
           />
-          {errors.currentPassword ? <p className="mt-1 text-xs text-rose-400">{errors.currentPassword.message}</p> : null}
+          {errors.currentPassword ? <p className="veridian-error mt-1">{errors.currentPassword.message}</p> : null}
         </div>
 
+        {/* New Password */}
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">New Password</label>
+          <label className="veridian-label">New Password</label>
           <input
             type="password"
             {...register('newPassword')}
-            className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100"
+            className="veridian-input"
           />
-          {errors.newPassword ? <p className="mt-1 text-xs text-rose-400">{errors.newPassword.message}</p> : null}
+          {errors.newPassword ? <p className="veridian-error mt-1">{errors.newPassword.message}</p> : null}
 
-          <div className="mt-2 rounded-xl border border-white/15 bg-slate-900/60 p-3">
-            <div className="mb-2 flex items-center justify-between text-xs text-slate-300">
+          {/* Strength Indicator */}
+          <div className="mt-3 rounded-input border border-white/10 bg-midnight-navy p-3">
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-caption">
               <span>Strength: {strength.label}</span>
               <span>{strength.score}/4</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-700">
+            <div className="h-2 rounded-full bg-white/10">
               <div
-                className={`h-2 rounded-full transition-all ${
-                  strength.score <= 1
-                    ? 'bg-rose-400'
-                    : strength.score === 2
-                      ? 'bg-amber-400'
-                      : strength.score === 3
-                        ? 'bg-emerald-400'
-                        : 'bg-cyan-400'
-                }`}
+                className={`h-2 rounded-full transition-all ${getStrengthColor(strength.score)}`}
                 style={{ width: `${Math.min(strength.score * 25, 100)}%` }}
               />
             </div>
           </div>
         </div>
 
+        {/* Confirm New Password */}
         <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">Confirm New Password</label>
+          <label className="veridian-label">Confirm New Password</label>
           <input
             type="password"
             {...register('confirmNewPassword')}
-            className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100"
+            className="veridian-input"
           />
           {errors.confirmNewPassword ? (
-            <p className="mt-1 text-xs text-rose-400">{errors.confirmNewPassword.message}</p>
+            <p className="veridian-error mt-1">{errors.confirmNewPassword.message}</p>
           ) : null}
           {confirmNewPassword.length > 0 ? (
-            <p className={`mt-1 inline-flex items-center gap-1 text-xs ${isMatch ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <p className={`mt-1.5 inline-flex items-center gap-1 text-xs ${isMatch ? 'text-veridian-emerald' : 'text-veridian-amber'}`}>
               <CheckCircle2 className="h-3.5 w-3.5" />
               {isMatch ? 'Passwords match' : 'Waiting for exact match'}
             </p>
           ) : null}
         </div>
 
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-70"
+          className="veridian-btn-primary inline-flex items-center gap-2"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
           {isSubmitting ? 'Updating...' : 'Update Password'}

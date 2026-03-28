@@ -1,9 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { getProfile } from '../features/auth/authService';
+import { clearUserSession, getProfile, saveUserSession } from '../features/auth/authService';
 
 const USER_DATA_KEY = 'user_data';
 const LEGACY_USER_KEY = 'authUser';
 const BACKEND_ORIGIN = 'http://localhost:8080';
+const DEFAULT_SYNC_STATUS = {
+  state: 'idle',
+  lastSyncedAt: null,
+};
 
 function resolveProfilePhotoUrl(url) {
   if (!url) return undefined;
@@ -55,8 +59,10 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readInitialUser());
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [syncStatus, setSyncStatusState] = useState(DEFAULT_SYNC_STATUS);
   const userRef = useRef(user);
   const lastProfileFetchAtRef = useRef(0);
+  const hydratedUserIdRef = useRef(null);
 
   useEffect(() => {
     userRef.current = user;
@@ -64,14 +70,11 @@ export function AuthProvider({ children }) {
 
   const persistUser = useCallback((nextUser) => {
     if (!nextUser) {
-      localStorage.removeItem(USER_DATA_KEY);
-      localStorage.removeItem(LEGACY_USER_KEY);
+      clearUserSession();
       return;
     }
 
-    const serialized = JSON.stringify(nextUser);
-    localStorage.setItem(USER_DATA_KEY, serialized);
-    localStorage.setItem(LEGACY_USER_KEY, serialized);
+    saveUserSession(nextUser);
   }, []);
 
   const updateCachedUser = useCallback((updater) => {
@@ -85,10 +88,23 @@ export function AuthProvider({ children }) {
   const clearUser = useCallback(() => {
     setUser(null);
     persistUser(null);
+    setSyncStatusState(DEFAULT_SYNC_STATUS);
+    lastProfileFetchAtRef.current = 0;
+    hydratedUserIdRef.current = null;
   }, [persistUser]);
 
-  const fetchProfile = useCallback(async ({ force = false, revalidate = true, silent = false } = {}) => {
-    const currentUser = userRef.current;
+  const setSyncStatus = useCallback((updater) => {
+    setSyncStatusState((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : { ...previous, ...updater };
+      return {
+        state: next?.state || DEFAULT_SYNC_STATUS.state,
+        lastSyncedAt: next?.lastSyncedAt ?? null,
+      };
+    });
+  }, []);
+
+  const fetchProfile = useCallback(async ({ force = false, revalidate = true, silent = false, seedUser = null } = {}) => {
+    const currentUser = seedUser ?? userRef.current;
     const userId = currentUser?.id;
     if (!userId) return null;
 
@@ -108,7 +124,8 @@ export function AuthProvider({ children }) {
         return currentUser;
       }
 
-      const next = normalizeProfileData(response.data, userRef.current);
+      const next = normalizeProfileData(response.data, currentUser);
+      userRef.current = next;
       setUser(next);
       persistUser(next);
       lastProfileFetchAtRef.current = Date.now();
@@ -120,18 +137,53 @@ export function AuthProvider({ children }) {
     }
   }, [persistUser]);
 
+  const applyAuthenticatedUser = useCallback(async (authenticatedUser, { silent = true } = {}) => {
+    if (!authenticatedUser) {
+      clearUser();
+      return null;
+    }
+
+    const seededUser = normalizeProfileData(authenticatedUser, null);
+    userRef.current = seededUser;
+    setUser(seededUser);
+    persistUser(seededUser);
+    hydratedUserIdRef.current = seededUser.id ?? null;
+    lastProfileFetchAtRef.current = 0;
+
+    if (!seededUser.id) {
+      return seededUser;
+    }
+
+    return fetchProfile({
+      force: true,
+      revalidate: false,
+      silent,
+      seedUser: seededUser,
+    });
+  }, [clearUser, fetchProfile, persistUser]);
+
   const value = useMemo(() => ({
     user,
     isProfileLoading,
+    syncStatus,
+    setSyncStatus,
     fetchProfile,
+    applyAuthenticatedUser,
     updateCachedUser,
     clearUser,
-  }), [user, isProfileLoading, fetchProfile, updateCachedUser, clearUser]);
+  }), [user, isProfileLoading, syncStatus, setSyncStatus, fetchProfile, applyAuthenticatedUser, updateCachedUser, clearUser]);
 
+  // Initial profile fetch on mount only - prevents infinite loop
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      hydratedUserIdRef.current = null;
+      return;
+    }
+    if (hydratedUserIdRef.current === user.id) return;
+    hydratedUserIdRef.current = user.id;
     void fetchProfile({ force: false, revalidate: true, silent: true });
-  }, [user?.id, fetchProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only re-fetch when user ID changes, not when fetchProfile changes
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

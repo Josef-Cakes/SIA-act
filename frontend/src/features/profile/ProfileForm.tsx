@@ -33,41 +33,45 @@ export default function ProfileForm({ initialValues, onSave, onCancel }: Profile
   });
 
   return (
-    <form onSubmit={handleSubmit(onSave)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSave)} className="space-y-5">
+      {/* Full Name Field */}
       <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">Full Name</label>
+        <label className="veridian-label">Full Name</label>
         <input
           {...register('fullName')}
-          className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100 focus:border-cyan-300"
+          className="veridian-input"
         />
-        {errors.fullName ? <p className="mt-1 text-xs text-rose-400">{errors.fullName.message}</p> : null}
+        {errors.fullName ? <p className="veridian-error mt-1">{errors.fullName.message}</p> : null}
       </div>
 
+      {/* Username Field */}
       <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">Username</label>
+        <label className="veridian-label">Username</label>
         <input
           {...register('username')}
-          className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100 focus:border-cyan-300"
+          className="veridian-input"
         />
-        <p className="mt-1 text-xs text-slate-400">Usernames can contain letters, numbers, underscores, and dots.</p>
-        {errors.username ? <p className="mt-1 text-xs text-rose-400">{errors.username.message}</p> : null}
+        <p className="mt-1.5 text-xs text-slate-caption">Usernames can contain letters, numbers, underscores, and dots.</p>
+        {errors.username ? <p className="veridian-error mt-1">{errors.username.message}</p> : null}
       </div>
 
+      {/* Bio Field */}
       <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-300">Bio</label>
+        <label className="veridian-label">Bio</label>
         <textarea
           {...register('bio')}
           rows={4}
-          className="w-full rounded-xl border border-white/20 bg-slate-900/70 px-3 py-2 text-slate-100 focus:border-cyan-300"
+          className="veridian-input resize-none"
         />
-        {errors.bio ? <p className="mt-1 text-xs text-rose-400">{errors.bio.message}</p> : null}
+        {errors.bio ? <p className="veridian-error mt-1">{errors.bio.message}</p> : null}
       </div>
 
-      <div className="flex flex-wrap gap-3 pt-1">
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-3 pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10"
+          className="veridian-btn-secondary inline-flex items-center gap-2"
         >
           <X className="h-4 w-4" />
           Cancel
@@ -76,7 +80,7 @@ export default function ProfileForm({ initialValues, onSave, onCancel }: Profile
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-70"
+          className="veridian-btn-primary inline-flex items-center gap-2"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {isSubmitting ? 'Saving...' : 'Save'}

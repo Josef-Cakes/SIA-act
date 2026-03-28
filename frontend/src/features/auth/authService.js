@@ -13,6 +13,18 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Add JWT token to requests automatically
+api.interceptors.request.use(
+  (config) => {
+    const token = getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // =============================================
 // AUTH APIS
 // =============================================
@@ -29,13 +41,97 @@ export const registerUser = async (userData) => {
 };
 
 /**
- * Log in an existing user.
+ * Log in an existing user by username.
  * POST /api/login
- * @param {Object} credentials - { email, password }
- * @returns {Promise<ApiResponse<UserResponse>>}
+ * @param {Object} credentials - { username, password }
+ * @returns {Promise<ApiResponse<UserResponse>>} - Includes JWT token and role
  */
 export const loginUser = async (credentials) => {
   const response = await api.post('/login', credentials);
+  return response.data;
+};
+
+/**
+ * Get admin analytics summary.
+ * GET /api/admin/analytics/summary
+ */
+export const getAdminAnalyticsSummary = async () => {
+  const response = await api.get('/admin/analytics/summary');
+  return response.data;
+};
+
+export const getAdminActivityFeed = async () => {
+  const response = await api.get('/admin/activity-feed');
+  return response.data;
+};
+
+export const getAdminHandlers = async () => {
+  const response = await api.get('/logs/handlers');
+  return response.data;
+};
+
+export const getAllActivityLogs = async ({ userId, limit = 20 } = {}) => {
+  const response = await api.get('/logs/all', {
+    params: {
+      ...(userId ? { userId } : {}),
+      limit,
+    },
+  });
+  return response.data;
+};
+
+export const getHandlerActivityLogs = async (handlerId, { startDate, endDate, livestockId } = {}) => {
+  const response = await api.get(`/logs/handler/${handlerId}`, {
+    params: {
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(livestockId ? { livestockId } : {}),
+    },
+  });
+  return response.data;
+};
+
+export const getInventorySummary = async () => {
+  const response = await api.get('/inventory/summary');
+  return response.data;
+};
+
+export const getBusinessTrends = async (range = '7d') => {
+  const response = await api.get('/analytics/business-trends', {
+    params: { range },
+  });
+  return response.data;
+};
+
+export const getResourceEfficiency = async (livestockId, range = '7d') => {
+  const response = await api.get('/analytics/resource-efficiency', {
+    params: { livestockId, range },
+  });
+  return response.data;
+};
+
+export const getInventorySpeciesBatches = async (livestockId) => {
+  const response = await api.get(`/inventory/summary/${livestockId}/batches`);
+  return response.data;
+};
+
+export const archiveInventoryBatch = async (batchId) => {
+  const response = await api.put(`/inventory/batches/${batchId}/archive`);
+  return response.data;
+};
+
+export const updateInventoryBatchAssignment = async (batchId, data) => {
+  const response = await api.put(`/inventory/batches/${batchId}/assignment`, data);
+  return response.data;
+};
+
+export const updateInventorySpecies = async (livestockId, data) => {
+  const response = await api.put(`/inventory/species/${livestockId}`, data);
+  return response.data;
+};
+
+export const deleteAdminLivestockSpecies = async (livestockId) => {
+  const response = await api.delete(`/admin/livestock/${livestockId}`);
   return response.data;
 };
 
@@ -84,11 +180,11 @@ export const uploadProfilePhoto = async (userId, imageFile) => {
   const formData = new FormData();
   formData.append('file', imageFile);
 
-  const session = getUserSession();
+  const token = getAuthToken();
   const response = await api.post(`/user/photo/${userId}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
-      'X-User-Id': String(session?.id ?? ''),
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
   return response.data;
@@ -103,13 +199,86 @@ export const getProfilePhotoUrl = (userId) => {
 };
 
 // =============================================
-// SESSION HELPERS (localStorage-based, no JWT)
+// JWT TOKEN HELPERS
+// =============================================
+
+/**
+ * Decode a JWT token without verification.
+ * @param {string} token - JWT token string
+ * @returns {Object|null} - Decoded payload or null if invalid
+ */
+export const decodeJwt = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Get JWT token from storage.
+ */
+export const getAuthToken = () => {
+  return localStorage.getItem('authToken');
+};
+
+/**
+ * Get user role from stored JWT token.
+ * @returns {string|null} - Role string (ROLE_ADMIN, ROLE_HANDLER) or null
+ */
+export const getUserRole = () => {
+  const token = getAuthToken();
+  if (!token) return null;
+  const decoded = decodeJwt(token);
+  return decoded?.role || null;
+};
+
+/**
+ * Check if user has admin role.
+ */
+export const isAdmin = () => {
+  return getUserRole() === 'ROLE_ADMIN';
+};
+
+/**
+ * Check if user has handler role.
+ */
+export const isHandler = () => {
+  return getUserRole() === 'ROLE_HANDLER';
+};
+
+/**
+ * Check if JWT token is expired.
+ */
+export const isTokenExpired = () => {
+  const token = getAuthToken();
+  if (!token) return true;
+  const decoded = decodeJwt(token);
+  if (!decoded?.exp) return true;
+  return decoded.exp * 1000 < Date.now();
+};
+
+// =============================================
+// SESSION HELPERS (localStorage-based with JWT)
 // =============================================
 
 export const saveUserSession = (user) => {
   const serialized = JSON.stringify(user);
   localStorage.setItem('authUser', serialized);
   localStorage.setItem('user_data', serialized);
+
+  // Save JWT token separately for easy access
+  if (user.token) {
+    localStorage.setItem('authToken', user.token);
+  }
 };
 
 export const getUserSession = () => {
@@ -120,6 +289,7 @@ export const getUserSession = () => {
 export const clearUserSession = () => {
   localStorage.removeItem('authUser');
   localStorage.removeItem('user_data');
+  localStorage.removeItem('authToken');
 };
 
 export default api;

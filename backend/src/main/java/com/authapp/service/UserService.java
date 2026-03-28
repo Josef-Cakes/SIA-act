@@ -1,11 +1,14 @@
 package com.authapp.service;
 
+import com.authapp.cache.CacheNames;
 import com.authapp.dto.*;
+import com.authapp.entity.Role;
 import com.authapp.entity.User;
 import com.authapp.repository.UserRepository;
+import com.authapp.security.JwtUtil;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -18,20 +21,32 @@ import java.util.Optional;
 @Transactional
 public class UserService {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    // BCrypt for password hashing – does NOT require Spring Security full config
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+    private final EventLogger eventLogger;
 
     // Allowed image types
     private static final List<String> ALLOWED_IMAGE_TYPES = Arrays.asList(
             "image/jpeg", "image/jpg", "image/png"
     );
 
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtUtil jwtUtil,
+            EventLogger eventLogger
+    ) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+        this.eventLogger = eventLogger;
+    }
+
     // =============================================
-    // REGISTER
+    // REGISTER (New users get ROLE_HANDLER by default)
     // =============================================
+    @CacheEvict(value = CacheNames.FARM_DATA, allEntries = true)
     public ApiResponse<UserResponse> register(RegisterRequest request) {
         // Check if email already exists
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -46,39 +61,47 @@ public class UserService {
         // Hash the password before saving
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
-        // Build and save the user
+        // Build and save the user (default role: ROLE_HANDLER)
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(hashedPassword)
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
+                .role(Role.ROLE_HANDLER)  // Default role for new registrations
                 .build();
 
         User savedUser = userRepository.save(user);
 
-        return ApiResponse.success("Registration successful! Welcome aboard.", toUserResponse(savedUser));
+        // Generate JWT token
+        String token = jwtUtil.generateToken(savedUser.getId(), savedUser.getUsername(), savedUser.getRole());
+
+        return ApiResponse.success("Registration successful! Welcome aboard.", toUserResponse(savedUser, token));
     }
 
     // =============================================
-    // LOGIN
+    // LOGIN (by Username) - Returns JWT token
     // =============================================
     public ApiResponse<UserResponse> login(LoginRequest request) {
-        // Find user by email
-        Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
+        // Find user by username (unique login credential)
+        Optional<User> userOptional = userRepository.findByUsername(request.getUsername());
 
         if (userOptional.isEmpty()) {
-            return ApiResponse.failure("Invalid credentials. No account found with that email.");
+            return ApiResponse.failure("Invalid username or password.");
         }
 
         User user = userOptional.get();
 
         // Verify password against BCrypt hash
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return ApiResponse.failure("Invalid credentials. Incorrect password.");
+            return ApiResponse.failure("Invalid username or password.");
         }
 
-        return ApiResponse.success("Login successful! Welcome back, " + user.getUsername() + ".", toUserResponse(user));
+        // Generate JWT token with role
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        eventLogger.logActivity(user.getId(), "LOGIN", user.getId(), null);
+
+        return ApiResponse.success("Login successful! Welcome back, " + user.getUsername() + ".", toUserResponse(user, token));
     }
 
     // =============================================
@@ -91,7 +114,7 @@ public class UserService {
             return ApiResponse.failure("User not found.");
         }
 
-        return ApiResponse.success("Profile retrieved successfully.", toUserResponse(userOptional.get()));
+        return ApiResponse.success("Profile retrieved successfully.", toUserResponse(userOptional.get(), null));
     }
 
     // =============================================
@@ -126,7 +149,7 @@ public class UserService {
         if (request.getPhone() != null) user.setPhone(request.getPhone());
 
         User updatedUser = userRepository.save(user);
-        return ApiResponse.success("Profile updated successfully.", toUserResponse(updatedUser));
+        return ApiResponse.success("Profile updated successfully.", toUserResponse(updatedUser, null));
     }
 
     // =============================================
@@ -189,13 +212,13 @@ public class UserService {
 
         // Fetch updated user
         User updatedUser = userRepository.findById(userId).get();
-        return ApiResponse.success("Profile image uploaded successfully.", toUserResponse(updatedUser));
+        return ApiResponse.success("Profile image uploaded successfully.", toUserResponse(updatedUser, null));
     }
 
     // =============================================
     // HELPER: Convert User entity -> UserResponse DTO
     // =============================================
-    private UserResponse toUserResponse(User user) {
+    private UserResponse toUserResponse(User user, String token) {
         boolean hasProfileImage = user.getProfileImage() != null && user.getProfileImage().length > 0;
 
         return UserResponse.builder()
@@ -204,8 +227,10 @@ public class UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
-            .hasProfileImage(hasProfileImage)
-            .profilePhotoUrl(hasProfileImage ? "/api/user/photo/" + user.getId() : null)
+                .role(user.getRole() != null ? user.getRole().name() : Role.ROLE_HANDLER.name())
+                .token(token)  // JWT token (null for non-auth responses)
+                .hasProfileImage(hasProfileImage)
+                .profilePhotoUrl(hasProfileImage ? "/api/user/photo/" + user.getId() : null)
                 .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null)
                 .build();
     }

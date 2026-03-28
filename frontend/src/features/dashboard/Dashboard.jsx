@@ -1,8 +1,35 @@
-// src/features/dashboard/Dashboard.jsx
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { clearUserSession, getProfilePhotoUrl } from '../auth/authService';
+import {
+  Boxes,
+  Calendar,
+  CheckCircle,
+  Hash,
+  LayoutDashboard,
+  Leaf,
+  Loader2,
+  LogOut,
+  Settings,
+  TrendingUp,
+  User,
+} from 'lucide-react';
+import Spinner from '../../components/Spinner';
+import ToastMessage from '../../components/ToastMessage';
+import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import { getProfilePhotoUrl } from '../auth/authService';
 import { useAuth } from '../../context/AuthContext';
+import { useLogoutAction } from '../auth/useLogout';
+import { QUICK_ACTIONS, getActionConfig } from './dashboardActionConfig';
+import { getDashboardStats, getRecentLogs, postLogAction } from './farmService';
+import QuickActionModal from './QuickActionModal';
+import RecentLogsPanel from './RecentLogsPanel';
+
+const EMPTY_STATS = {
+  totalLivestock: 0,
+  activeBatchCount: 0,
+  todayActionCount: 0,
+  availableBatches: [],
+};
 
 function toTitleCase(value) {
   if (!value || typeof value !== 'string') return '';
@@ -12,51 +39,179 @@ function toTitleCase(value) {
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
 
+function resolveAvatarUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `http://localhost:8080${url}`;
+  return `http://localhost:8080/${url}`;
+}
+
+function getErrorMessage(error, fallbackMessage = 'Something went wrong.') {
+  const status = error?.response?.status;
+  if (status === 403) {
+    return 'Permission Denied';
+  }
+
+  return error?.response?.data?.message || fallbackMessage;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, fetchProfile, clearUser } = useAuth();
+  const { user, isProfileLoading } = useAuth();
+  const logout = useLogoutAction();
   const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState(EMPTY_STATS);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [isActionSubmitting, setIsActionSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [selectedActionType, setSelectedActionType] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [actionForm, setActionForm] = useState({
+    batchId: '',
+    quantity: 1,
+    remarks: '',
+  });
+
+  const userId = user?.id;
+  const selectedAction = useMemo(
+    () => (selectedActionType ? getActionConfig(selectedActionType) : null),
+    [selectedActionType]
+  );
 
   const navItems = [
-    { label: 'Dashboard', icon: '⊞', path: '/dashboard' },
-    { label: 'Profile', icon: '◉', path: '/user-management' },
-    { label: 'Settings', icon: '⚙', path: null },
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { label: 'Profile', icon: User, path: '/user-management' },
+    { label: 'Settings', icon: Settings, path: null },
   ];
 
+  const refreshDashboardData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setIsDashboardLoading(true);
+    }
+
+    try {
+      const [statsResponse, logsResponse] = await Promise.all([
+        getDashboardStats(),
+        getRecentLogs(),
+      ]);
+
+      if (statsResponse?.success && statsResponse?.data) {
+        setDashboardStats({
+          ...EMPTY_STATS,
+          ...statsResponse.data,
+          availableBatches: statsResponse.data.availableBatches || [],
+        });
+      } else {
+        throw new Error(statsResponse?.message || 'Unable to load dashboard stats.');
+      }
+
+      if (logsResponse?.success && Array.isArray(logsResponse?.data)) {
+        setRecentLogs(logsResponse.data);
+      } else {
+        throw new Error(logsResponse?.message || 'Unable to load recent logs.');
+      }
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: getErrorMessage(error, 'Unable to load dashboard data.'),
+      });
+    } finally {
+      setIsDashboardLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
+    if (!userId) {
       return;
     }
 
-    void fetchProfile({ force: false, revalidate: true, silent: true });
-  }, [user?.id, navigate, fetchProfile]);
+    void refreshDashboardData();
+  }, [userId, refreshDashboardData]);
 
-  const handleLogout = () => {
-    clearUser();
-    clearUserSession();
-    navigate('/login');
+  const handleQuickAction = (actionType) => {
+    if (!dashboardStats.availableBatches.length) {
+      setToast({
+        type: 'error',
+        message: 'No active batches are available for quick actions yet.',
+      });
+      return;
+    }
+
+    setSelectedActionType(actionType);
+    setActionForm({
+      batchId: String(dashboardStats.availableBatches[0].id),
+      quantity: 1,
+      remarks: '',
+    });
   };
 
-  const resolveAvatarUrl = (url) => {
-    if (!url) return null;
-    if (/^https?:\/\//i.test(url)) return url;
-    if (url.startsWith('/')) return `http://localhost:8080${url}`;
-    return `http://localhost:8080/${url}`;
+  const handleActionFormChange = (event) => {
+    const { name, value } = event.target;
+    setActionForm((previous) => ({
+      ...previous,
+      [name]: name === 'quantity' ? Number(value) : value,
+    }));
+  };
+
+  const closeActionModal = (force = false) => {
+    if (isActionSubmitting && !force) {
+      return;
+    }
+
+    setSelectedActionType(null);
+    setActionForm({
+      batchId: '',
+      quantity: 1,
+      remarks: '',
+    });
+  };
+
+  const handleSubmitQuickAction = async (event) => {
+    event.preventDefault();
+
+    if (!selectedAction) {
+      return;
+    }
+
+    setIsActionSubmitting(true);
+
+    try {
+      const response = await postLogAction({
+        actionType: selectedAction.type,
+        batchId: Number(actionForm.batchId),
+        quantity: Number(actionForm.quantity),
+        remarks: actionForm.remarks?.trim() || undefined,
+      });
+
+      if (!response?.success) {
+        throw new Error(response?.message || `Unable to submit ${selectedAction.label.toLowerCase()}.`);
+      }
+
+      closeActionModal(true);
+      await refreshDashboardData({ silent: true });
+      setToast({
+        type: 'success',
+        message: `${selectedAction.label} logged successfully.`,
+      });
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: getErrorMessage(error, `Unable to submit ${selectedAction.label.toLowerCase()}.`),
+      });
+    } finally {
+      setIsActionSubmitting(false);
+    }
   };
 
   if (!user) {
     return (
-      <div style={styles.page}>
-        <main style={styles.main}>
-          <header style={styles.header}>
-            <div>
-              <h1 style={styles.headerTitle}>Dashboard</h1>
-              <p style={styles.headerSub}>Welcome back!</p>
-            </div>
-          </header>
-        </main>
+      <div className="min-h-screen flex items-center justify-center bg-midnight-navy font-sans text-white px-4">
+        <div className="inline-flex min-h-touch items-center gap-3 rounded-container border border-white/10 bg-deep-slate px-5 py-4 text-sm text-slate-caption shadow-card">
+          <Spinner />
+          {isProfileLoading ? 'Loading your account...' : 'Preparing your dashboard...'}
+        </div>
       </div>
     );
   }
@@ -67,258 +222,225 @@ export default function Dashboard() {
   const avatarUrl = resolveAvatarUrl(user?.profilePhotoUrl)
     || (user?.hasProfileImage ? getProfilePhotoUrl(user.id) : null);
 
+  const statCards = [
+    {
+      label: 'Total Livestock',
+      value: dashboardStats.totalLivestock.toLocaleString(),
+      icon: Boxes,
+      color: 'text-veridian-emerald',
+      hint: 'Live count across all active batches',
+    },
+    {
+      label: 'Active Batches',
+      value: dashboardStats.activeBatchCount.toLocaleString(),
+      icon: Hash,
+      color: 'text-veridian-sky',
+      hint: 'Batches available for quick action logging',
+    },
+    {
+      label: 'Actions Today',
+      value: dashboardStats.todayActionCount.toLocaleString(),
+      icon: TrendingUp,
+      color: 'text-veridian-amber',
+      hint: 'Your logged farm actions in the last 24 hours',
+    },
+  ];
+
   return (
-    <div style={styles.page}>
-      {/* Sidebar */}
-      <aside style={styles.sidebar}>
-        <div style={styles.sidebarBrand}>
-          <div style={styles.logoRing}>⬡</div>
-          <span style={styles.brandName}>Farm Ville</span>
+    <div className="min-h-screen flex bg-midnight-navy font-sans text-white">
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+      />
+      {toast ? <ToastMessage type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
+      <QuickActionModal
+        action={selectedAction}
+        batches={dashboardStats.availableBatches}
+        formValues={actionForm}
+        onClose={closeActionModal}
+        onChange={handleActionFormChange}
+        onSubmit={handleSubmitQuickAction}
+        isSubmitting={isActionSubmitting}
+      />
+
+      <aside className="hidden w-56 flex-shrink-0 bg-deep-slate border-r border-white/10 md:flex md:flex-col md:p-6">
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="w-8 h-8 rounded-input bg-veridian-emerald flex items-center justify-center">
+            <Leaf className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-base font-semibold text-white">Farm Ville</span>
         </div>
 
-        <nav style={styles.nav}>
-          {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.label}
-              onClick={() => {
-                if (item.path) {
-                  navigate(item.path);
-                  return;
-                }
-                console.info('Settings route is not implemented yet.');
-              }}
-              style={{
-                ...styles.navItem,
-                ...(item.path && location.pathname === item.path ? styles.navItemActive : {}),
-              }}
-            >
-              <span style={styles.navIcon}>
-                {item.icon}
-              </span>
-              {item.label}
-            </button>
-          ))}
+        <nav className="flex-1 flex flex-col gap-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.path && location.pathname === item.path;
+            return (
+              <button
+                type="button"
+                key={item.label}
+                onClick={() => {
+                  if (item.path) {
+                    navigate(item.path);
+                    return;
+                  }
+                  setToast({
+                    type: 'error',
+                    message: 'Settings is not available yet.',
+                  });
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-input text-sm font-medium transition-colors duration-200 min-h-touch ${
+                  isActive
+                    ? 'bg-veridian-emerald/15 text-veridian-emerald'
+                    : 'text-slate-caption hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
-        <button onClick={handleLogout} style={styles.logoutBtn}>
-          <span>↩</span> Logout
+        <button
+          type="button"
+          onClick={() => setShowLogoutModal(true)}
+          className="flex items-center gap-3 px-3 py-3 rounded-input text-sm font-medium text-slate-caption hover:bg-white/5 hover:text-white transition-colors duration-200 border border-white/10 mt-auto min-h-touch"
+        >
+          <LogOut className="w-5 h-5" />
+          Logout
         </button>
       </aside>
 
-      {/* Main Content */}
-      <main style={styles.main}>
-        {/* Header */}
-        <header style={styles.header}>
+      <main className="flex-1 overflow-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 style={styles.headerTitle}>Dashboard</h1>
-            <p style={styles.headerSub}>{welcomeMessage}</p>
+            <h1 className="text-3xl font-semibold text-white">Dashboard</h1>
+            <p className="text-slate-caption text-sm mt-1">{welcomeMessage}</p>
           </div>
-          <div style={styles.avatar}>
-            {avatarUrl && !avatarLoadError ? (
-              <img
-                src={avatarUrl}
-                alt="Profile"
-                style={styles.avatarImg}
-                onError={() => {
-                  setAvatarLoadError(true);
-                }}
-              />
-            ) : (
-              <span style={styles.avatarInitial}>
-                {(displayName || 'U')[0].toUpperCase()}
-              </span>
-            )}
+
+          <div className="flex items-center justify-between gap-4 rounded-container border border-white/10 bg-deep-slate px-4 py-3 sm:min-w-[260px]">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-caption">Signed In As</p>
+              <p className="mt-1 text-sm font-semibold text-white">{displayName || user.username}</p>
+            </div>
+            <div className="h-12 w-12 overflow-hidden rounded-full bg-veridian-emerald flex items-center justify-center">
+              {avatarUrl && !avatarLoadError ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarLoadError(true)}
+                />
+              ) : (
+                <span className="text-white font-semibold text-lg">
+                  {(displayName || 'U')[0].toUpperCase()}
+                </span>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Stats cards */}
-        <div style={styles.statsGrid}>
-          {[
-            { label: 'Account Status', value: 'Active', color: '#10b981', icon: '✓' },
-            { label: 'User ID', value: `#${user.id}`, color: '#6366f1', icon: '⊕' },
-            { label: 'Member Since', value: user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Today', color: '#f59e0b', icon: '◷' },
-          ].map((stat) => (
-            <div key={stat.label} style={styles.statCard}>
-              <div style={{ ...styles.statIcon, color: stat.color }}>{stat.icon}</div>
-              <div>
-                <p style={styles.statLabel}>{stat.label}</p>
-                <p style={{ ...styles.statValue, color: stat.color }}>{stat.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Profile info card */}
-        <div style={styles.profileCard}>
-          <h3 style={styles.cardTitle}>Profile Information</h3>
-          <div style={styles.profileGrid}>
-            {[
-              { label: 'Username', value: user.username },
-              { label: 'Email', value: user.email },
-              { label: 'Full Name', value: user.fullName || '—' },
-              { label: 'Phone', value: user.phone || '—' },
-            ].map((field) => (
-              <div key={field.label} style={styles.profileField}>
-                <span style={styles.profileFieldLabel}>{field.label}</span>
-                <span style={styles.profileFieldValue}>{field.value}</span>
-              </div>
-            ))}
+        {isDashboardLoading ? (
+          <div className="mb-8 flex items-center gap-3 rounded-container border border-white/10 bg-deep-slate px-4 py-3 text-sm text-slate-caption">
+            <Spinner />
+            Refreshing live dashboard data...
           </div>
-        </div>
+        ) : null}
 
-        {/* Success notice */}
-        <div style={styles.successBanner}>
-          <span style={{ color: '#10b981', fontSize: '18px' }}>✓</span>
-          <div>
-            <p style={styles.successTitle}>Login Successful</p>
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <article
+                key={stat.label}
+                className="rounded-container border border-white/10 bg-deep-slate p-5 shadow-card"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-caption">{stat.label}</p>
+                    <p className={`mt-3 text-2xl font-semibold ${stat.color}`}>{stat.value}</p>
+                  </div>
+                  <div className="rounded-input bg-midnight-navy p-3">
+                    <Icon className={`h-5 w-5 ${stat.color}`} />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-caption">{stat.hint}</p>
+              </article>
+            );
+          })}
+        </section>
+
+        <section className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            <article className="rounded-container border border-white/10 bg-deep-slate p-5 shadow-card">
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-white">Quick Actions</h2>
+                  <p className="text-sm text-slate-caption">
+                    Submit a farm event and watch the cards and logs refresh immediately.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {QUICK_ACTIONS.map((action) => {
+                  const { Icon } = action;
+                  return (
+                    <button
+                      key={action.type}
+                      type="button"
+                      onClick={() => handleQuickAction(action.type)}
+                      className={`min-h-[144px] rounded-container border bg-midnight-navy p-4 text-left transition-all duration-200 ${action.buttonClassName}`}
+                    >
+                      <div className={`mb-4 inline-flex rounded-input p-3 ${action.iconSurfaceClassName}`}>
+                        <Icon className={`h-5 w-5 ${action.iconClassName}`} />
+                      </div>
+                      <p className="text-sm font-semibold text-white">{action.label}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-caption">{action.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </article>
+
+            <article className="rounded-container border border-white/10 bg-deep-slate p-5 shadow-card">
+              <h2 className="text-base font-semibold text-white">Profile Snapshot</h2>
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {[
+                  { label: 'Account Status', value: 'Active', icon: CheckCircle, color: 'text-veridian-emerald' },
+                  { label: 'User ID', value: `#${user.id}`, icon: Hash, color: 'text-veridian-sky' },
+                  {
+                    label: 'Member Since',
+                    value: user.createdAt
+                      ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                      : 'Today',
+                    icon: Calendar,
+                    color: 'text-veridian-amber',
+                  },
+                  { label: 'Available Batches', value: dashboardStats.availableBatches.length, icon: Boxes, color: 'text-veridian-emerald' },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="rounded-input border border-white/10 bg-midnight-navy p-4">
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-5 w-5 ${item.color}`} />
+                        <div>
+                          <p className="text-xs text-slate-caption">{item.label}</p>
+                          <p className={`mt-1 text-sm font-semibold ${item.color}`}>{item.value}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
           </div>
-        </div>
+
+          <RecentLogsPanel recentLogs={recentLogs} />
+        </section>
       </main>
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    background: '#0a0a0f',
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    color: '#fff',
-  },
-  sidebar: {
-    width: '220px',
-    flexShrink: 0,
-    background: '#13131a',
-    borderRight: '1px solid rgba(255,255,255,0.07)',
-    display: 'flex',
-    flexDirection: 'column',
-    padding: '28px 16px',
-    gap: '8px',
-  },
-  sidebarBrand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '32px',
-    paddingLeft: '8px',
-  },
-  logoRing: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
-    background: 'linear-gradient(135deg, #6366f1, #10b981)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '14px',
-    color: '#fff',
-  },
-  brandName: { fontSize: '16px', fontWeight: '700', color: '#fff' },
-  nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' },
-  navItem: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '10px 12px',
-    borderRadius: '8px',
-    fontSize: '14px',
-    color: '#666',
-    cursor: 'pointer',
-    border: 'none',
-    background: 'transparent',
-    textAlign: 'left',
-  },
-  navItemActive: {
-    background: 'rgba(99,102,241,0.15)',
-    color: '#818cf8',
-  },
-  navIcon: { fontSize: '16px' },
-  logoutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '8px',
-    color: '#666',
-    padding: '10px 12px',
-    fontSize: '14px',
-    cursor: 'pointer',
-    marginTop: 'auto',
-  },
-  main: {
-    flex: 1,
-    padding: '40px 48px',
-    overflow: 'auto',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '36px',
-  },
-  headerTitle: { fontSize: '28px', fontWeight: '700', margin: '0 0 4px', letterSpacing: '-0.5px' },
-  headerSub: { fontSize: '14px', color: '#666', margin: 0 },
-  avatar: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #6366f1, #10b981)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '18px',
-    fontWeight: '700',
-    overflow: 'hidden',
-  },
-  avatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  avatarInitial: { color: '#fff' },
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '16px',
-    marginBottom: '24px',
-  },
-  statCard: {
-    background: '#13131a',
-    border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: '14px',
-    padding: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-  },
-  statIcon: { fontSize: '24px' },
-  statLabel: { fontSize: '12px', color: '#666', margin: '0 0 4px' },
-  statValue: { fontSize: '18px', fontWeight: '700', margin: 0 },
-  profileCard: {
-    background: '#13131a',
-    border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: '14px',
-    padding: '24px',
-    marginBottom: '20px',
-  },
-  cardTitle: { fontSize: '16px', fontWeight: '600', margin: '0 0 20px', color: '#ccc' },
-  profileGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
-  },
-  profileField: { display: 'flex', flexDirection: 'column', gap: '4px' },
-  profileFieldLabel: { fontSize: '12px', color: '#555' },
-  profileFieldValue: { fontSize: '15px', color: '#ddd' },
-  successBanner: {
-    background: 'rgba(16,185,129,0.08)',
-    border: '1px solid rgba(16,185,129,0.2)',
-    borderRadius: '12px',
-    padding: '18px 22px',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '14px',
-  },
-  successTitle: { fontSize: '14px', fontWeight: '600', color: '#10b981', margin: '0 0 4px' },
-  successSub: { fontSize: '13px', color: '#555', margin: 0 },
-};

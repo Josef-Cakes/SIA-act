@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2, Upload, Save } from 'lucide-react';
 import Spinner from '../../components/Spinner';
 import { editProfileSchema, type EditProfileFormValues } from './validationSchemas';
 import type { ProfileViewModel } from './types';
@@ -46,85 +47,87 @@ export default function EditProfileForm({ profile, onSubmitProfile, onUploadAvat
   }
 
   return (
-    <div className="rounded-2xl border border-slate-700/60 bg-slate-900/70 p-6 shadow-xl backdrop-blur">
-      <h2 className="mb-6 text-xl font-semibold text-slate-100">Edit Profile</h2>
+    <div className="rounded-container border border-white/10 bg-deep-slate p-6 shadow-card">
+      <h2 className="mb-6 text-xl font-semibold text-white">Edit Profile</h2>
 
+      {/* Avatar Upload Section */}
       <div className="mb-6 grid gap-4 sm:grid-cols-[120px_1fr]">
-        <div className="h-[120px] w-[120px] overflow-hidden rounded-2xl border border-dashed border-slate-500 bg-slate-800/40">
+        <div className="h-[120px] w-[120px] overflow-hidden rounded-container border-2 border-dashed border-slate-caption/30 bg-midnight-navy">
           {avatarPreview ? (
             <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-slate-300">Avatar Placeholder</div>
+            <div className="flex h-full items-center justify-center text-xs text-slate-caption">Avatar Placeholder</div>
           )}
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-300">Upload Avatar (placeholder flow)</label>
+        <div className="space-y-3">
+          <label className="veridian-label">Upload Avatar</label>
           <input
             type="file"
             accept="image/*"
             onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
-            className="block w-full rounded-lg border border-slate-600 bg-slate-950/80 px-3 py-2 text-sm text-slate-100"
+            className="veridian-input text-sm file:mr-4 file:rounded-input file:border-0 file:bg-veridian-emerald file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:brightness-110"
           />
           <button
             type="button"
             disabled={!avatarFile || isUploading}
             onClick={handleAvatarUpload}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="veridian-btn-primary inline-flex items-center gap-2"
           >
-            {isUploading ? <Spinner size="sm" /> : null}
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {isUploading ? 'Uploading...' : 'Upload Avatar'}
           </button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmitProfile)} className="grid gap-4 sm:grid-cols-2">
+      {/* Profile Form */}
+      <form onSubmit={handleSubmit(onSubmitProfile)} className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm text-slate-300">Email</label>
+          <label className="veridian-label">Email</label>
           <input
             {...register('email')}
             type="email"
-            className="w-full rounded-lg border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100"
+            className="veridian-input"
           />
-          {errors.email && <p className="mt-1 text-xs text-rose-400">{errors.email.message}</p>}
+          {errors.email && <p className="veridian-error mt-1">{errors.email.message}</p>}
         </div>
 
         <div>
-          <label className="mb-1 block text-sm text-slate-300">Username</label>
+          <label className="veridian-label">Username</label>
           <input
             {...register('username')}
-            className="w-full rounded-lg border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100"
+            className="veridian-input"
           />
-          {errors.username && <p className="mt-1 text-xs text-rose-400">{errors.username.message}</p>}
+          {errors.username && <p className="veridian-error mt-1">{errors.username.message}</p>}
         </div>
 
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm text-slate-300">Bio</label>
+          <label className="veridian-label">Bio</label>
           <textarea
             {...register('bio')}
             rows={4}
-            className="w-full rounded-lg border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100"
+            className="veridian-input resize-none"
           />
-          {errors.bio && <p className="mt-1 text-xs text-rose-400">{errors.bio.message}</p>}
+          {errors.bio && <p className="veridian-error mt-1">{errors.bio.message}</p>}
         </div>
 
         <div>
-          <label className="mb-1 block text-sm text-slate-300">Role</label>
-          <select {...register('role')} className="w-full rounded-lg border border-slate-600 bg-slate-950/80 px-3 py-2 text-slate-100">
+          <label className="veridian-label">Role</label>
+          <select {...register('role')} className="veridian-input">
             <option value="USER">User</option>
             <option value="MANAGER">Manager</option>
             <option value="ADMIN">Admin</option>
           </select>
-          {errors.role && <p className="mt-1 text-xs text-rose-400">{errors.role.message}</p>}
+          {errors.role && <p className="veridian-error mt-1">{errors.role.message}</p>}
         </div>
 
-        <div className="sm:col-span-2">
+        <div className="sm:col-span-2 pt-2">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="veridian-btn-primary inline-flex items-center gap-2"
           >
-            {isSubmitting ? <Spinner size="sm" /> : null}
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {isSubmitting ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
