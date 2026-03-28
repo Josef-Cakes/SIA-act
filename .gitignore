@@ -20,6 +20,7 @@ dist/
 .env
 *.env
 application-local.properties
+application.properties
 
 # ===== OS =====
 .DS_Store
