@@ -25,7 +25,6 @@ import java.util.Map;
 @RequestMapping("/api/farmville/events")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "http://localhost:5173")
 public class FarmVilleEventController {
 
     private final EventService eventService;
