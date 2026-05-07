@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/farmville/livestock")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class FarmVilleLivestockController {
 
     private final LivestockRepository livestockRepository;

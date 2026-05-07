@@ -22,7 +22,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/farmville/batches")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class FarmVilleBatchController {
 
     private final BatchRepository batchRepository;

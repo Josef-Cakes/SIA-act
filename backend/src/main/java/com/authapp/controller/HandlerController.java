@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/handler")
-@CrossOrigin(origins = "http://localhost:5173")
 @PreAuthorize("hasAuthority('ROLE_HANDLER')")
 @RequiredArgsConstructor
 public class HandlerController {

@@ -14,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/profiles")
-@CrossOrigin(origins = "http://localhost:5173")
 public class ProfileController {
 
     private static final double MIN_PASSWORD_ENTROPY_BITS = 45.0;
