@@ -60,6 +60,7 @@ public class SecurityConfig {
             // Authorization rules
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints (no authentication required)
+                .requestMatchers(HttpMethod.GET, "/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
