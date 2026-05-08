@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, Mail, Pencil, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ToastMessage from '../../components/ToastMessage';
+import { resolveBackendUrl } from '../../config/env';
 import { getProfilePhotoUrl, updatePassword, updateProfile, uploadProfilePhoto } from '../auth/authService';
 import AvatarUpload from './AvatarUpload';
 import PasswordSection from './PasswordSection';
@@ -19,8 +20,6 @@ interface ProfileState {
 
 type ToastState = { type: 'success' | 'error'; message: string } | null;
 
-const BACKEND_BASE_URL = 'http://localhost:8080';
-
 function formatJoinDate(raw?: string): string {
   if (!raw) return new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const parsed = new Date(raw);
@@ -29,10 +28,7 @@ function formatJoinDate(raw?: string): string {
 }
 
 function resolveProfilePhotoUrl(url?: string): string | undefined {
-  if (!url) return undefined;
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith('/')) return `${BACKEND_BASE_URL}${url}`;
-  return `${BACKEND_BASE_URL}/${url}`;
+  return resolveBackendUrl(url);
 }
 
 export default function ProfileDashboard() {
