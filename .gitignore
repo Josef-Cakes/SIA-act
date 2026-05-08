@@ -1,3 +1,6 @@
+HEAD
+node_modules
+
 # ===== Java / Maven =====
 target/
 *.class
@@ -25,3 +28,4 @@ application.properties
 # ===== OS =====
 .DS_Store
 Thumbs.db
+origin/main

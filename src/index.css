@@ -1,0 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VERIDIAN DESIGN SYSTEM - Global Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Base Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0F172A; /* Midnight Navy */
+  color: #e2e8f0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Typography Scale (Inter Font)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Titles: Semibold (600) */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+
+/* Body: Medium (500) */
+p, span, label {
+  font-weight: 500;
+}
+
+/* Captions: Regular (400) in Slate Gray */
+.caption, small {
+  font-weight: 400;
+  color: #94A3B8;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Form Inputs - Veridian Styling
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Input focus state - Emerald Green */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #10B981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  outline: none;
+}
+
+/* Error state - Rose Red */
+input.input-error,
+textarea.input-error {
+  border-color: #F43F5E !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Buttons - Veridian Styling
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Primary buttons hover */
+button[type="submit"]:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+button:disabled,
+.btn-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Animations
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scrollbar Styling
+   ───────────────────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Utility Classes - Veridian Design System
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Card Container - Deep Slate with 12px radius */
+  .veridian-card {
+    @apply bg-deep-slate border border-white/10 rounded-container shadow-card;
+  }
+
+  /* Input Field - 8px radius, 48px min height */
+  .veridian-input {
+    @apply w-full min-h-touch bg-deep-slate border border-slate-caption/30 rounded-input px-4 py-3 text-white placeholder-slate-caption/60 transition-colors duration-200;
+  }
+
+  /* Primary Button - Emerald Green, 8px radius, 48px height */
+  .veridian-btn-primary {
+    @apply min-h-touch bg-veridian-emerald text-white font-semibold rounded-input px-6 py-3 transition-all duration-200 hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  /* Secondary Button */
+  .veridian-btn-secondary {
+    @apply min-h-touch bg-deep-slate border border-slate-caption/30 text-white font-medium rounded-input px-6 py-3 transition-all duration-200 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  /* Link - Sky Blue */
+  .veridian-link {
+    @apply text-veridian-sky font-medium hover:underline transition-colors duration-200;
+  }
+
+  /* Error Text - Rose Red */
+  .veridian-error {
+    @apply text-veridian-rose text-sm;
+  }
+
+  /* Label - Slate Gray caption */
+  .veridian-label {
+    @apply block text-slate-caption text-sm font-medium mb-2;
+  }
+}
