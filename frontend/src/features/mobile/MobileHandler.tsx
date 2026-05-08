@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import Spinner from '../../components/Spinner';
+import { resolveBackendUrl } from '../../config/env';
 import { useAuth } from '../../context/AuthContext';
 import { useFarmData, useLivestockBatches } from '../../context/FarmDataContext';
 import { getProfilePhotoUrl } from '../auth/authService';
@@ -207,10 +208,7 @@ function createInitialBatchForm(livestockId = ''): CreateBatchFormState {
 }
 
 function resolveAvatarUrl(url?: string | null) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith('/')) return `http://localhost:8080${url}`;
-  return `http://localhost:8080/${url}`;
+  return resolveBackendUrl(url || undefined) || null;
 }
 
 function getFirstName(fullName?: string | null, fallback = 'Handler') {
