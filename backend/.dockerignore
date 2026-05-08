@@ -1,0 +1,12 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+.env
+.env.*
+*.log
+logs/
+uploads/
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md
