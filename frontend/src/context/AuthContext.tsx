@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearUserSession, getProfile, saveUserSession } from '../features/auth/authService';
+import { buildBackendUrl } from '../config/backendOrigin';
 
 const USER_DATA_KEY = 'user_data';
 const LEGACY_USER_KEY = 'authUser';
-const BACKEND_ORIGIN = 'http://localhost:8080';
 const DEFAULT_SYNC_STATUS = {
   state: 'idle',
   lastSyncedAt: null,
@@ -12,8 +12,7 @@ const DEFAULT_SYNC_STATUS = {
 function resolveProfilePhotoUrl(url) {
   if (!url) return undefined;
   if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith('/')) return `${BACKEND_ORIGIN}${url}`;
-  return `${BACKEND_ORIGIN}/${url}`;
+  return buildBackendUrl(url);
 }
 
 function safeParse(value) {

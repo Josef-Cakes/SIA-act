@@ -59,10 +59,7 @@ public class SecurityConfig {
 
             // Authorization rules
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/health").permitAll() // Add the root "/" here
-                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
-                // Public endpoints (no authentication required)
-                .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                .requestMatchers("/", "/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
@@ -75,12 +72,12 @@ public class SecurityConfig {
                 // Handler-only endpoints
                 .requestMatchers("/api/handler/**").hasAuthority("ROLE_HANDLER")
 
-                // User endpoints (any authenticated user)
-                .requestMatchers("/api/user/**").authenticated()
-
                 // Profile photo endpoints (public read for avatars, authenticated write)
                 .requestMatchers(HttpMethod.GET, "/api/user/photo/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/user/photo/**").authenticated()
+
+                // User endpoints (any authenticated user)
+                .requestMatchers("/api/user/**").authenticated()
 
                 // All other requests require authentication
                 .anyRequest().authenticated()
