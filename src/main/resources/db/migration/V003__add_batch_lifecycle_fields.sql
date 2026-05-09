@@ -1,0 +1,5 @@
+ALTER TABLE batches
+    ADD COLUMN IF NOT EXISTS breed VARCHAR(100);
+
+ALTER TABLE batches
+    ADD COLUMN IF NOT EXISTS arrival_date DATE;
