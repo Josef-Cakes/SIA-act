@@ -16,11 +16,10 @@ import {
 import Spinner from '../../components/Spinner';
 import ToastMessage from '../../components/ToastMessage';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
-<<<<<<< HEAD
+ HEAD
 import { buildBackendUrl } from '../../config/backendOrigin';
-=======
 import { resolveBackendUrl } from '../../config/env';
->>>>>>> origin/main
+origin/main
 import { getProfilePhotoUrl } from '../auth/authService';
 import { useAuth } from '../../context/AuthContext';
 import { useLogoutAction } from '../auth/useLogout';
