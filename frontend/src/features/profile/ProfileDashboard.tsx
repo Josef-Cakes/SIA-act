@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, Mail, Pencil, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ToastMessage from '../../components/ToastMessage';
+import { resolveBackendUrl } from '../../config/env';
 import { getProfilePhotoUrl, updatePassword, updateProfile, uploadProfilePhoto } from '../auth/authService';
 import { buildBackendUrl } from '../../config/backendOrigin';
 import AvatarUpload from './AvatarUpload';
@@ -28,9 +29,13 @@ function formatJoinDate(raw?: string): string {
 }
 
 function resolveProfilePhotoUrl(url?: string): string | undefined {
+<<<<<<< HEAD
   if (!url) return undefined;
   if (/^https?:\/\//i.test(url)) return url;
   return buildBackendUrl(url);
+=======
+  return resolveBackendUrl(url);
+>>>>>>> origin/main
 }
 
 export default function ProfileDashboard() {

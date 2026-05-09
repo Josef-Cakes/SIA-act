@@ -3,7 +3,6 @@ package com.authapp.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -59,27 +58,11 @@ public class SecurityConfig {
 
             // Authorization rules
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/health").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // Admin-only endpoints
-                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/analytics/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/inventory/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/logs/**").hasAuthority("ROLE_ADMIN")
-
-                // Handler-only endpoints
-                .requestMatchers("/api/handler/**").hasAuthority("ROLE_HANDLER")
-
-                // Profile photo endpoints (public read for avatars, authenticated write)
-                .requestMatchers(HttpMethod.GET, "/api/user/photo/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/user/photo/**").authenticated()
-
-                // User endpoints (any authenticated user)
-                .requestMatchers("/api/user/**").authenticated()
-
-                // All other requests require authentication
+                // 1. Permit the root and health check for Render/Vercel
+                .requestMatchers("/", "/health", "/favicon.ico").permitAll()
+                // 2. Permit all Auth-related endpoints (Login/Register)
+                .requestMatchers("/api/auth/**").permitAll()
+                // 3. Keep everything else protected
                 .anyRequest().authenticated()
             )
 
