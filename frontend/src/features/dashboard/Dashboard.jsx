@@ -44,13 +44,12 @@ function toTitleCase(value) {
 }
 
 function resolveAvatarUrl(url) {
-<<<<<<< HEAD
+HEAD
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
   return buildBackendUrl(url);
-=======
   return resolveBackendUrl(url) || null;
->>>>>>> origin/main
+origin/main
 }
 
 function getErrorMessage(error, fallbackMessage = 'Something went wrong.') {
