@@ -24,10 +24,11 @@ import java.util.List;
  * Security Configuration with Role-Based Access Control (RBAC).
  *
  * Access Rules:
- * - /api/admin/**  → ROLE_ADMIN only
+ * - /api/admin/**   → ROLE_ADMIN only
  * - /api/handler/** → ROLE_HANDLER only
- * - /api/user/** → Authenticated users (any role)
- * - /api/login, /api/register → Public (no auth required)
+ * - /api/user/**    → Authenticated users (any role)
+ * - /api/auth/**    → Public (no auth required)
+ * - /health, /      → Public (no auth required)
  */
 @Configuration
 @EnableWebSecurity
@@ -46,26 +47,32 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Explicitly enable your CORS bean
-            .csrf(AbstractHttpConfigurer::disable) // Cleaner way to disable CSRF
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Permit these public endpoints
-                .requestMatchers("/health").permitAll() 
+
+                // ✅ FIX 1: Allow ALL OPTIONS preflight requests — must be first
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // ✅ FIX 2: Permit root path and health check (avoids Render proxy 403)
+                .requestMatchers("/", "/health").permitAll()
+
+                // Public auth endpoints
                 .requestMatchers("/api/auth/**").permitAll()
-                
-                // Keep your RBAC rules
+
+                // RBAC rules
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/handler/**").hasRole("HANDLER")
                 .requestMatchers("/api/user/**").authenticated()
-                
+
                 .anyRequest().authenticated()
             )
-            // Add your JWT filter before the standard authentication filter
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
