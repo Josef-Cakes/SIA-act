@@ -49,7 +49,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Ensure CSRF is disabled for stateless APIs
             .authorizeHttpRequests(auth -> auth
                 // Add this line to permit the health check and root URL
-                .requestMatchers("/", "/health").permitAll() 
+                .requestMatchers("/health").permitAll() 
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
             );
