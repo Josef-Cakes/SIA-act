@@ -51,25 +51,25 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-
-                // ✅ FIX 1: Allow ALL OPTIONS preflight requests — must be first
+    
+                // Allow ALL OPTIONS preflight requests — must be first
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // ✅ FIX 2: Permit root path and health check (avoids Render proxy 403)
-                .requestMatchers("/health").permitAll()
-
-                // Public auth endpoints
-                .requestMatchers("/api/auth/**").permitAll()
-
+    
+                // Health check
+                .requestMatchers("/", "/health").permitAll()
+    
+                // ✅ FIXED: explicitly permit both /api/login, /api/register AND /api/auth/**
+                .requestMatchers("/api/login", "/api/register", "/api/auth/**").permitAll()
+    
                 // RBAC rules
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/handler/**").hasRole("HANDLER")
                 .requestMatchers("/api/user/**").authenticated()
-
+    
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
+    
         return http.build();
     }
 
