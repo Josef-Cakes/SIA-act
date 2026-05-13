@@ -51,7 +51,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Permit these public endpoints
-                .requestMatchers("/", "/health", "/favicon.ico").permitAll() 
+                .requestMatchers("/health").permitAll() 
                 .requestMatchers("/api/auth/**").permitAll()
                 
                 // Keep your RBAC rules
