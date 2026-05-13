@@ -46,15 +46,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Ensure CSRF is disabled for stateless APIs
+            .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Explicitly enable your CORS bean
+            .csrf(AbstractHttpConfigurer::disable) // Cleaner way to disable CSRF
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Add this line to permit the health check and root URL
-                .requestMatchers("/health").permitAll() 
+                // Permit these public endpoints
+                .requestMatchers("/", "/health", "/favicon.ico").permitAll() 
                 .requestMatchers("/api/auth/**").permitAll()
+                
+                // Keep your RBAC rules
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/handler/**").hasRole("HANDLER")
+                .requestMatchers("/api/user/**").authenticated()
+                
                 .anyRequest().authenticated()
-            );
+            )
+            // Add your JWT filter before the standard authentication filter
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
-    }
     
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
