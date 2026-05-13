@@ -9,11 +9,6 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
-    @GetMapping("/")
-    public String root() {
-        return "Backend is up and running!";
-    }
-
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of("status", "ok"));
