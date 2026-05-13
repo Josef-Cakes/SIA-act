@@ -56,7 +56,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                 // ✅ FIX 2: Permit root path and health check (avoids Render proxy 403)
-                .requestMatchers("/health").permitAll()
+                .requestMatchers("/", "/health").permitAll()
 
                 // Public auth endpoints
                 .requestMatchers("/api/auth/**").permitAll()
