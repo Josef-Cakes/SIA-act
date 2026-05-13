@@ -44,66 +44,18 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF for REST API
-            .csrf(AbstractHttpConfigurer::disable)
-
-            // Configure CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-            // Stateless session (JWT-based)
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-
-            // Authorization rules
+            .csrf(csrf -> csrf.disable()) // Ensure CSRF is disabled for stateless APIs
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints (no authentication required)
-                .requestMatchers(HttpMethod.GET, "/health").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // Admin-only endpoints
-                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/analytics/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/inventory/**").hasAuthority("ROLE_ADMIN")
-                .requestMatchers("/api/logs/**").hasAuthority("ROLE_ADMIN")
-
-                // Handler-only endpoints
-                .requestMatchers("/api/handler/**").hasAuthority("ROLE_HANDLER")
-
-                // User endpoints (any authenticated user)
-                .requestMatchers("/api/user/**").authenticated()
-
-                // Profile photo endpoints (public read for avatars, authenticated write)
-                .requestMatchers(HttpMethod.GET, "/api/user/photo/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/user/photo/**").authenticated()
-
-                // All other requests require authentication
+                // Add this line to permit the health check and root URL
+                .requestMatchers("/", "/health").permitAll() 
+                .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
-            )
-
-            // Custom exception handling for unauthorized/forbidden requests
-            .exceptionHandling(exception -> exception
-                .authenticationEntryPoint((request, response, authException) -> {
-                    response.setContentType("application/json");
-                    response.setStatus(401);
-                    response.getWriter().write("{\"success\":false,\"message\":\"Unauthorized: Authentication required\"}");
-                })
-                .accessDeniedHandler((request, response, accessDeniedException) -> {
-                    response.setContentType("application/json");
-                    response.setStatus(403);
-                    response.getWriter().write("{\"success\":false,\"message\":\"Forbidden: Insufficient permissions\"}");
-                })
-            )
-
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
+            );
         return http.build();
     }
-
+    
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
