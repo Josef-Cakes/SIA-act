@@ -24,11 +24,12 @@ import java.util.List;
  * Security Configuration with Role-Based Access Control (RBAC).
  *
  * Access Rules:
- * - /api/admin/**   → ROLE_ADMIN only
- * - /api/handler/** → ROLE_HANDLER only
- * - /api/user/**    → Authenticated users (any role)
- * - /api/auth/**    → Public (no auth required)
- * - /health, /      → Public (no auth required)
+ * - /api/admin/**     → ROLE_ADMIN only
+ * - /api/handler/**   → ROLE_HANDLER only
+ * - /api/user/**      → Authenticated users (any role)
+ * - /api/dashboard/** → Authenticated users (any role)
+ * - /api/auth/**      → Public (no auth required)
+ * - /health, /        → Public (no auth required)
  */
 @Configuration
 @EnableWebSecurity
@@ -37,7 +38,10 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${app.cors.allowed-origins:https://sia-act.onrender.com}")
+    // IMPORTANT: Default now includes the Vercel frontend URL.
+    // Override in application.properties or as an environment variable on Render:
+    //   app.cors.allowed-origins=https://your-frontend.vercel.app,http://localhost:3000
+    @Value("${app.cors.allowed-origins:https://farmville-frontend.vercel.app,https://sia-act.onrender.com,http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
@@ -51,25 +55,28 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-    
-                // Allow ALL OPTIONS preflight requests — must be first
+
+                // 1) Allow ALL OPTIONS preflight requests — must be first
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-    
-                // Health check
+
+                // 2) Health check / root
                 .requestMatchers("/", "/health").permitAll()
-    
-                // ✅ FIXED: explicitly permit both /api/login, /api/register AND /api/auth/**
+
+                // 3) Public auth endpoints
                 .requestMatchers("/api/login", "/api/register", "/api/auth/**").permitAll()
-    
-                // RBAC rules
+
+                // 4) RBAC rules
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/handler/**").hasRole("HANDLER")
                 .requestMatchers("/api/user/**").authenticated()
-    
+
+                // 5) Dashboard — requires a valid JWT (any authenticated role)
+                .requestMatchers("/api/dashboard/**").authenticated()
+
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-    
+
         return http.build();
     }
 
@@ -77,7 +84,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(parseAllowedOrigins());
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
