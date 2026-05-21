@@ -41,7 +41,7 @@ public class SecurityConfig {
     // IMPORTANT: Default now includes the Vercel frontend URL.
     // Override in application.properties or as an environment variable on Render:
     //   app.cors.allowed-origins=https://your-frontend.vercel.app,http://localhost:3000
-    @Value("${app.cors.allowed-origins:https://farmville-frontend.vercel.app,https://sia-act.onrender.com,http://localhost:3000,http://localhost:5173}")
+    @Value("${app.cors.allowed-origins:https://sia-act.vercel.app,https://sia-act.onrender.com,http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
