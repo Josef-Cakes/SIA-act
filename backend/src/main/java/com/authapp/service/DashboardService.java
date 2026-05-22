@@ -86,10 +86,6 @@ public class DashboardService {
         Batch batch = batchRepository.findById(request.getBatchId())
                 .orElseThrow(() -> new IllegalArgumentException("Batch not found."));
 
-        if (batch.getUser() != null && batch.getUser().getId() != null && !batch.getUser().getId().equals(userId)) {
-            throw new AccessDeniedException("You do not have permission to log activity for this batch.");
-        }
-
         if ("SALE".equals(actionType)) {
             return logSaleAction(userId, user, batch, request, ipAddress);
         }
