@@ -264,8 +264,8 @@ public class AdminManagementService {
     private List<AdminActivityLogDTO> loadActivityLogs(Long userId, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 100));
         List<ActivityLog> logs = userId == null
-                ? activityLogRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, safeLimit))
-                : activityLogRepository.findByUserIdOrderByTimestampDesc(userId, PageRequest.of(0, safeLimit));
+                ? activityLogRepository.findByActionNotOrderByTimestampDesc("LOGIN", PageRequest.of(0, safeLimit))
+                : activityLogRepository.findByUserIdAndActionNotOrderByTimestampDesc(userId, "LOGIN", PageRequest.of(0, safeLimit));
 
         return mapLogs(logs);
     }

@@ -138,6 +138,8 @@ function StatCard({ title, value, changeLabel, icon, sparkline }: StatCardProps)
 }
 
 function ActivityItem({ type, message, time, handlerName, status = 'success' }: ActivityItemProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const icons = {
     feed: <Droplets className="w-4 h-4" />,
     alert: <AlertTriangle className="w-4 h-4" />,
@@ -152,17 +154,22 @@ function ActivityItem({ type, message, time, handlerName, status = 'success' }: 
   };
 
   return (
-    <div className="flex items-start gap-3 p-3 rounded-input hover:bg-white/5 transition-colors">
+    <div 
+      className="flex items-start gap-3 p-3 rounded-input hover:bg-white/5 transition-colors cursor-pointer"
+      onClick={() => setIsExpanded(!isExpanded)}
+    >
       <div className={`p-2 rounded-input ${statusColors[status]}`}>
         {icons[type]}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-midnight-navy px-2.5 py-1 text-[11px] font-medium text-slate-200">
-            <UserRound className="w-3 h-3 text-veridian-sky" />
-            {handlerName}
-          </span>
-        </div>
+        {isExpanded && (
+          <div className="mb-1 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-midnight-navy px-2.5 py-1 text-[11px] font-medium text-slate-200">
+              <UserRound className="w-3 h-3 text-veridian-sky" />
+              {handlerName}
+            </span>
+          </div>
+        )}
         <p className="text-sm text-white">{message}</p>
         <p className="text-xs text-slate-caption flex items-center gap-1 mt-1">
           <Clock className="w-3 h-3" />
