@@ -286,7 +286,7 @@ export default function AnalyticsView() {
         </div>
 
         {hasResourceEfficiencyData ? (
-          <ResponsiveContainer width="100%" height={420}>
+          <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={resourceEfficiencyData} margin={{ top: 20, right: 10, left: -15, bottom: 0 }}>
               <defs>
                 <linearGradient id="populationFill" x1="0" y1="0" x2="0" y2="1">
@@ -412,7 +412,7 @@ export default function AnalyticsView() {
               <p className="text-xs text-slate-caption">Audited event volume across the last 7 days</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={220}>
             <ComposedChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
               <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
@@ -474,7 +474,7 @@ export default function AnalyticsView() {
         </div>
 
         {hasBusinessData ? (
-          <ResponsiveContainer width="100%" height={340}>
+          <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={businessTrendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
               <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
