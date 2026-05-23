@@ -227,7 +227,8 @@ function getGreetingByTime() {
 
 function formatTimeAgo(timestamp?: string | Date | null) {
   if (!timestamp) return 'Just now';
-  const parsed = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const normalizedTimestamp = typeof timestamp === 'string' && !timestamp.endsWith('Z') ? `${timestamp}Z` : timestamp;
+  const parsed = normalizedTimestamp instanceof Date ? normalizedTimestamp : new Date(normalizedTimestamp);
   if (Number.isNaN(parsed.getTime())) return 'Just now';
 
   const diffMinutes = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 60000));

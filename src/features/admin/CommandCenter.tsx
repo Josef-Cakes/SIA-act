@@ -45,7 +45,8 @@ function formatCurrency(value: number) {
 }
 
 function formatTimeAgo(timestamp: string) {
-  const parsed = new Date(timestamp);
+  const normalizedTimestamp = timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`;
+  const parsed = new Date(normalizedTimestamp);
   if (Number.isNaN(parsed.getTime())) return 'Just now';
 
   const diffMinutes = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 60000));
