@@ -404,25 +404,127 @@ export default function AnalyticsView() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-container border border-white/10 bg-deep-slate p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-veridian-emerald" />
-            <div>
-              <h3 className="text-base font-semibold text-white">Daily Event Tracker</h3>
-              <p className="text-xs text-slate-caption">Audited event volume across the last 7 days</p>
+        <div className="flex flex-col gap-6">
+          <div className="rounded-container border border-white/10 bg-deep-slate p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-veridian-emerald" />
+              <div>
+                <h3 className="text-base font-semibold text-white">Daily Event Tracker</h3>
+                <p className="text-xs text-slate-caption">Audited event volume across the last 7 days</p>
+              </div>
             </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
+                <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+                <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="activityCount" fill="#10B981" radius={[6, 6, 0, 0]} name="Audit Events" />
+                <Line type="monotone" dataKey="activityCount" stroke="#38BDF8" strokeWidth={3} name="Trend" />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <ComposedChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
-              <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
-              <YAxis stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="activityCount" fill="#10B981" radius={[6, 6, 0, 0]} name="Audit Events" />
-              <Line type="monotone" dataKey="activityCount" stroke="#38BDF8" strokeWidth={3} name="Trend" />
-            </ComposedChart>
-          </ResponsiveContainer>
+
+          <div className="rounded-container border border-white/10 bg-deep-slate p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-white">Livestock Health &amp; Revenue</h3>
+                <p className="text-xs text-slate-caption">
+                  Daily revenue, mortality, and end-of-day stock from real sales, audit, and inventory data.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {BUSINESS_RANGE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSelectedBusinessRange(option.value)}
+                    className={`min-h-touch rounded-input border px-3 py-2 text-xs font-medium transition-colors ${
+                      selectedBusinessRange === option.value
+                        ? 'border-veridian-emerald/40 bg-veridian-emerald/15 text-veridian-emerald'
+                        : 'border-white/10 text-slate-caption hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {hasBusinessData ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={businessTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
+                  <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
+                  <YAxis
+                    yAxisId="revenue"
+                    stroke="#10B981"
+                    tick={{ fill: '#64748B', fontSize: 12 }}
+                    tickFormatter={(value) => `₱${Number(value).toLocaleString()}`}
+                  />
+                  <YAxis
+                    yAxisId="counts"
+                    orientation="right"
+                    stroke="#F43F5E"
+                    tick={{ fill: '#64748B', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Revenue') {
+                        return [formatCurrency(Number(value)), name];
+                      }
+                      return [Number(value).toLocaleString(), name];
+                    }}
+                    labelFormatter={(value) => `Date: ${value}`}
+                  />
+                  <Legend />
+                  <Bar
+                    yAxisId="revenue"
+                    dataKey="totalRevenue"
+                    name="Revenue"
+                    fill="#10B981"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Line
+                    yAxisId="counts"
+                    type="monotone"
+                    dataKey="mortalityCount"
+                    name="Mortality"
+                    stroke="#F43F5E"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#F43F5E' }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    yAxisId="counts"
+                    type="monotone"
+                    dataKey="currentStock"
+                    name="Current Stock"
+                    stroke="#38BDF8"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : isBusinessTrendLoading ? (
+              <div className="rounded-input border border-dashed border-white/10 bg-midnight-navy/40 p-10 text-center">
+                <p className="text-base font-medium text-white">Loading chart data</p>
+                <p className="mt-2 text-sm text-slate-caption">
+                  Pulling the latest revenue, mortality, and stock movement.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-input border border-dashed border-white/10 bg-midnight-navy/40 p-10 text-center">
+                <p className="text-base font-medium text-white">No data yet</p>
+                <p className="mt-2 text-sm text-slate-caption">
+                  This chart will populate once handlers start logging sales or mortality events.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="rounded-container border border-white/10 bg-deep-slate p-5">
@@ -444,106 +546,6 @@ export default function AnalyticsView() {
             ) : null}
           </div>
         </div>
-      </div>
-
-      <div className="rounded-container border border-white/10 bg-deep-slate p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-white">Livestock Health &amp; Revenue</h3>
-            <p className="text-xs text-slate-caption">
-              Daily revenue, mortality, and end-of-day stock from real sales, audit, and inventory data.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {BUSINESS_RANGE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setSelectedBusinessRange(option.value)}
-                className={`min-h-touch rounded-input border px-3 py-2 text-xs font-medium transition-colors ${
-                  selectedBusinessRange === option.value
-                    ? 'border-veridian-emerald/40 bg-veridian-emerald/15 text-veridian-emerald'
-                    : 'border-white/10 text-slate-caption hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {hasBusinessData ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={businessTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" opacity={0.5} />
-              <XAxis dataKey="label" stroke="#64748B" tick={{ fill: '#64748B', fontSize: 12 }} />
-              <YAxis
-                yAxisId="revenue"
-                stroke="#10B981"
-                tick={{ fill: '#64748B', fontSize: 12 }}
-                tickFormatter={(value) => `₱${Number(value).toLocaleString()}`}
-              />
-              <YAxis
-                yAxisId="counts"
-                orientation="right"
-                stroke="#F43F5E"
-                tick={{ fill: '#64748B', fontSize: 12 }}
-              />
-              <Tooltip
-                formatter={(value: number, name: string) => {
-                  if (name === 'Revenue') {
-                    return [formatCurrency(Number(value)), name];
-                  }
-                  return [Number(value).toLocaleString(), name];
-                }}
-                labelFormatter={(value) => `Date: ${value}`}
-              />
-              <Legend />
-              <Bar
-                yAxisId="revenue"
-                dataKey="totalRevenue"
-                name="Revenue"
-                fill="#10B981"
-                radius={[6, 6, 0, 0]}
-              />
-              <Line
-                yAxisId="counts"
-                type="monotone"
-                dataKey="mortalityCount"
-                name="Mortality"
-                stroke="#F43F5E"
-                strokeWidth={3}
-                dot={{ r: 4, fill: '#F43F5E' }}
-                activeDot={{ r: 6 }}
-              />
-              <Line
-                yAxisId="counts"
-                type="monotone"
-                dataKey="currentStock"
-                name="Current Stock"
-                stroke="#38BDF8"
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        ) : isBusinessTrendLoading ? (
-          <div className="rounded-input border border-dashed border-white/10 bg-midnight-navy/40 p-10 text-center">
-            <p className="text-base font-medium text-white">Loading chart data</p>
-            <p className="mt-2 text-sm text-slate-caption">
-              Pulling the latest revenue, mortality, and stock movement.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-input border border-dashed border-white/10 bg-midnight-navy/40 p-10 text-center">
-            <p className="text-base font-medium text-white">No data yet</p>
-            <p className="mt-2 text-sm text-slate-caption">
-              This chart will populate once handlers start logging sales or mortality events.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
