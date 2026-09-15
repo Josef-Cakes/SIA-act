@@ -10,6 +10,7 @@ import {
   LogOut,
   Leaf,
   Bell,
+  ClipboardList,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ const navItems = [
   { label: 'Handlers', icon: Users, path: '/admin/handlers' },
   { label: 'Livestock', icon: Tractor, path: '/admin/livestock' },
   { label: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
+  { label: 'Operations', icon: ClipboardList, path: '/admin/operations' },
   { label: 'Settings', icon: Settings, path: '/admin/settings' },
 ];
 
@@ -118,9 +120,13 @@ export default function AdminLayout() {
 
           <div className="flex items-center gap-4">
             {/* Notifications */}
-            <button className="relative p-2 rounded-input hover:bg-white/5 transition-colors">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/operations')}
+              title="Open operational exceptions"
+              className="relative p-2 rounded-input hover:bg-white/5 transition-colors"
+            >
               <Bell className="w-5 h-5 text-slate-caption" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-veridian-rose rounded-full" />
             </button>
 
             {/* User Info */}

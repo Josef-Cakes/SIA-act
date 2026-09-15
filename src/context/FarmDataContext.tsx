@@ -14,8 +14,10 @@ import {
 } from '../features/auth/authService';
 import {
   getDashboardStats,
+  getAssignedOperationalTasks,
   getLivestockBatches,
   getLivestockInventory,
+  getOperationalAlerts,
   getRecentLogs,
 } from '../features/dashboard/farmService';
 import { useAuth } from './AuthContext';
@@ -44,8 +46,32 @@ export interface DashboardRecentLog {
   batchId: number;
   batchName?: string;
   quantity: number;
+  measuredQuantity?: number | null;
   remarks?: string;
   timestamp: string;
+}
+
+export interface OperationalAlert {
+  id: number;
+  ruleCode: string;
+  message: string;
+  severity: string;
+  status: string;
+  dueAt?: string | null;
+  batchId?: number | null;
+}
+
+export interface OperationalTask {
+  id: number;
+  taskKey: string;
+  title: string;
+  description?: string | null;
+  locationLabel?: string | null;
+  status: string;
+  priority: string;
+  dueAt?: string | null;
+  completedAt?: string | null;
+  batchId?: number | null;
 }
 
 export interface LivestockSummary {
@@ -150,6 +176,8 @@ type FarmDataContextValue = {
   stats: DashboardStats;
   batches: DashboardBatchOption[];
   recentLogs: DashboardRecentLog[];
+  tasks: OperationalTask[];
+  alerts: OperationalAlert[];
   livestock: LivestockSummary[];
   analytics: DashboardAnalytics;
   inventorySummary: InventorySummary;
@@ -187,6 +215,8 @@ export const farmQueryKeys = {
   root: ['farm'] as const,
   handlerStats: (userId: number | null | undefined) => ['farm', 'handler', userId ?? 'guest', 'stats'] as const,
   handlerRecentLogs: (userId: number | null | undefined) => ['farm', 'handler', userId ?? 'guest', 'recent-logs'] as const,
+  handlerTasks: (userId: number | null | undefined) => ['farm', 'handler', userId ?? 'guest', 'tasks'] as const,
+  handlerAlerts: (userId: number | null | undefined) => ['farm', 'handler', userId ?? 'guest', 'alerts'] as const,
   handlerLivestock: (userId: number | null | undefined) => ['farm', 'handler', userId ?? 'guest', 'livestock'] as const,
   handlerLivestockBatches: (userId: number | null | undefined, livestockId: number | null | undefined) =>
     ['farm', 'handler', userId ?? 'guest', 'livestock', livestockId ?? 'none', 'batches'] as const,
@@ -247,6 +277,20 @@ export function FarmDataProvider({ children }: { children: ReactNode }) {
     staleTime: STALE_TIME_MS,
   });
 
+  const tasksQuery = useQuery({
+    queryKey: farmQueryKeys.handlerTasks(userId),
+    queryFn: async () => extractApiData(await getAssignedOperationalTasks(), 'Unable to load assigned tasks.'),
+    enabled: isHandler && Boolean(userId),
+    staleTime: STALE_TIME_MS,
+  });
+
+  const alertsQuery = useQuery({
+    queryKey: farmQueryKeys.handlerAlerts(userId),
+    queryFn: async () => extractApiData(await getOperationalAlerts(), 'Unable to load operational alerts.'),
+    enabled: isHandler && Boolean(userId),
+    staleTime: STALE_TIME_MS,
+  });
+
   const livestockQuery = useQuery({
     queryKey: farmQueryKeys.handlerLivestock(userId),
     queryFn: async () => extractApiData(await getLivestockInventory(), 'Unable to load livestock inventory.'),
@@ -256,7 +300,7 @@ export function FarmDataProvider({ children }: { children: ReactNode }) {
 
   const relevantQueries = useMemo(() => {
     if (isHandler) {
-      return [handlerStatsQuery, recentLogsQuery, livestockQuery];
+      return [handlerStatsQuery, recentLogsQuery, livestockQuery, tasksQuery, alertsQuery];
     }
 
     return [];
@@ -265,6 +309,8 @@ export function FarmDataProvider({ children }: { children: ReactNode }) {
     isHandler,
     livestockQuery,
     recentLogsQuery,
+    tasksQuery,
+    alertsQuery,
   ]);
 
   const isBootstrapping = relevantQueries.length > 0
@@ -321,6 +367,8 @@ export function FarmDataProvider({ children }: { children: ReactNode }) {
     stats: handlerStatsQuery.data ?? EMPTY_STATS,
     batches: handlerStatsQuery.data?.availableBatches ?? EMPTY_STATS.availableBatches,
     recentLogs: recentLogsQuery.data ?? [],
+    tasks: tasksQuery.data ?? [],
+    alerts: alertsQuery.data ?? [],
     livestock: livestockQuery.data ?? [],
     analytics: EMPTY_ANALYTICS,
     inventorySummary: EMPTY_INVENTORY_SUMMARY,
@@ -334,11 +382,13 @@ export function FarmDataProvider({ children }: { children: ReactNode }) {
   }), [
     error,
     handlerStatsQuery.data,
+    alertsQuery.data,
     invalidateFarmData,
     isBootstrapping,
     isRefreshing,
     livestockQuery.data,
     recentLogsQuery.data,
+    tasksQuery.data,
     refreshFarmData,
     role,
   ]);

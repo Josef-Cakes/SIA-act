@@ -11,9 +11,11 @@ import {
   Bell,
   RefreshCw,
   UserRound,
+  Download,
 } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAdminAnalytics, useAdminGlobalLogs, useFarmData } from '../../context/FarmDataContext';
+import { downloadDailyOperationsReport } from '../dashboard/farmService';
 
 interface ActivityTrendDatum {
   day: string;
@@ -257,6 +259,8 @@ function PerformanceChart({ data }: { data: ActivityTrendDatum[] }) {
 export default function CommandCenter() {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isExportingReport, setIsExportingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState('');
   const { refreshFarmData } = useFarmData();
   const {
     data: analytics,
@@ -353,6 +357,19 @@ export default function CommandCenter() {
       },
     ];
 
+  const handleExportReport = async () => {
+    setIsExportingReport(true);
+    setReportMessage('');
+    try {
+      await downloadDailyOperationsReport(new Date().toISOString().slice(0, 10));
+      setReportMessage('Daily report downloaded.');
+    } catch (error) {
+      setReportMessage(error?.response?.data?.message || 'Unable to export the daily report.');
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -372,6 +389,15 @@ export default function CommandCenter() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </button>
+          <button
+            type="button"
+            onClick={() => void handleExportReport()}
+            className="inline-flex items-center gap-2 rounded-input bg-veridian-emerald px-4 py-2 text-sm font-medium text-midnight-navy transition-colors hover:bg-veridian-emerald/90 disabled:opacity-60"
+            disabled={isExportingReport}
+          >
+            <Download className="w-4 h-4" />
+            {isExportingReport ? 'Exporting…' : 'Export today'}
+          </button>
           <div className="flex items-center gap-2 text-veridian-emerald text-sm">
             <span className="w-2 h-2 rounded-full bg-veridian-emerald animate-pulse" />
             {loadError ? 'Analytics degraded' : isLoading ? 'Syncing live data' : isRefreshing ? 'Refreshing now' : 'Real data live'}
@@ -382,6 +408,11 @@ export default function CommandCenter() {
       {loadError ? (
         <div className="rounded-container border border-veridian-amber/30 bg-veridian-amber/10 p-4 text-sm text-veridian-amber">
           {loadError}
+        </div>
+      ) : null}
+      {reportMessage ? (
+        <div className="rounded-container border border-veridian-sky/30 bg-veridian-sky/10 p-3 text-sm text-veridian-sky">
+          {reportMessage}
         </div>
       ) : null}
 
@@ -418,7 +449,12 @@ export default function CommandCenter() {
       </div>
 
       <div className="bg-deep-slate border border-white/10 rounded-container p-5">
-        <h3 className="text-base font-semibold text-white mb-4">Quick Actions</h3>
+        <h3 className="text-base font-semibold text-white mb-2">Daily close</h3>
+        <p className="text-sm text-slate-caption">
+          Export the ledger-backed report after reviewing exceptions. It includes
+          operation IDs, actors, quantities, status, and correction links.
+        </p>
+        <h3 className="text-base font-semibold text-white mt-6 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Review Analytics', icon: TrendingUp, color: 'text-veridian-emerald', action: () => navigate('/admin/analytics') },
