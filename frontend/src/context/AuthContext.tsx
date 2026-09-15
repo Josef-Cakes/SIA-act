@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { resolveBackendUrl } from '../config/env';
 import { clearUserSession, getProfile, saveUserSession } from '../features/auth/authService';
-import { buildBackendUrl } from '../config/backendOrigin';
 
 const USER_DATA_KEY = 'user_data';
 const LEGACY_USER_KEY = 'authUser';
@@ -11,13 +10,7 @@ const DEFAULT_SYNC_STATUS = {
 };
 
 function resolveProfilePhotoUrl(url) {
-<<<<<<< HEAD
-  if (!url) return undefined;
-  if (/^https?:\/\//i.test(url)) return url;
-  return buildBackendUrl(url);
-=======
   return resolveBackendUrl(url);
->>>>>>> origin/main
 }
 
 function safeParse(value) {

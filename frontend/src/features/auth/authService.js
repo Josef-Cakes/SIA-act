@@ -2,15 +2,9 @@
 // All API calls go through Spring Boot - React NEVER calls Supabase directly.
 
 import axios from 'axios';
-<<<<<<< HEAD
-import { BACKEND_ORIGIN } from '../../config/backendOrigin';
-
-const BASE_URL = `${BACKEND_ORIGIN}/api`;
-=======
 import { API_BASE_URL } from '../../config/env';
 
 const BASE_URL = API_BASE_URL;
->>>>>>> origin/main
 
 const api = axios.create({
   baseURL: BASE_URL,
