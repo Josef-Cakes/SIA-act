@@ -67,6 +67,7 @@ interface DashboardRecentLog {
   batchId: number;
   batchName?: string;
   quantity: number;
+  measuredQuantity?: number | null;
   remarks?: string;
   timestamp: string;
 }
@@ -331,7 +332,7 @@ function getRecentLogSummary(log: DashboardRecentLog) {
       return `Sold: ${batchName} x${log.quantity}`;
     case 'FEEDING':
     default:
-      return `Feeding: ${batchName} x${log.quantity}`;
+      return `Feeding: ${batchName} ${log.measuredQuantity ?? log.quantity} kg`;
   }
 }
 
@@ -763,6 +764,7 @@ export default function MobileHandler() {
     actionType: string;
     batchId: number;
     quantity: number;
+    measuredQuantity?: number;
     remarks?: string;
     customerName?: string;
     unitPrice?: number;
@@ -774,6 +776,7 @@ export default function MobileHandler() {
         actionType: payload.actionType,
         batchId: payload.batchId,
         quantity: payload.quantity,
+        measuredQuantity: payload.measuredQuantity,
         remarks: payload.remarks,
         customerName: payload.customerName,
         unitPrice: payload.unitPrice,
@@ -783,7 +786,10 @@ export default function MobileHandler() {
         throw new Error(response?.message || 'Unable to submit the action.');
       }
 
-      showSuccessOverlay(payload.successTitle, payload.successMessage);
+      const successMessage = response?.data?.pendingSync
+        ? 'Saved on this device. It will synchronize automatically when the connection returns.'
+        : payload.successMessage;
+      showSuccessOverlay(payload.successTitle, successMessage);
     } catch (error) {
       setToast({
         type: 'error',
@@ -809,7 +815,8 @@ export default function MobileHandler() {
     await handleSubmitAction({
       actionType: 'FEEDING',
       batchId: selectedFeedingBatch.id,
-      quantity: weight,
+      quantity: 1,
+      measuredQuantity: weight,
       remarks: buildRemarks([`Feed Type: ${selectedFeedType}`, feedingForm.notes]) || undefined,
       successTitle: 'Feeding Logged',
       successMessage: `${selectedFeedType} recorded for ${selectedFeedingBatch.name}.`,
@@ -1064,6 +1071,8 @@ export default function MobileHandler() {
                         ? 'Syncing now'
                         : syncStatus.state === 'error'
                           ? 'Sync delayed'
+                        : syncStatus.state === 'pending'
+                          ? 'Saved on device'
                         : lastSyncedAt
                           ? `Synced ${formatTimeAgo(lastSyncedAt)}`
                           : 'Waiting for first sync'}
@@ -1437,7 +1446,7 @@ export default function MobileHandler() {
                             id="feeding-weight"
                             type="number"
                             min="1"
-                            step="1"
+                            step="0.01"
                             className="veridian-input"
                             placeholder="Enter total feed weight"
                             value={feedingForm.weight}

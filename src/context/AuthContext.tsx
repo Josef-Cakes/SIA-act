@@ -90,6 +90,27 @@ export function AuthProvider({ children }) {
     hydratedUserIdRef.current = null;
   }, [persistUser]);
 
+  useEffect(() => {
+    const handleSessionExpired = () => clearUser();
+    window.addEventListener('auth:expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:expired', handleSessionExpired);
+  }, [clearUser]);
+
+  useEffect(() => {
+    const markPending = () => setSyncStatusState((current) => ({ ...current, state: 'pending' }));
+    const markSynced = () => setSyncStatusState({ state: 'synced', lastSyncedAt: new Date().toISOString() });
+    const markFailed = () => setSyncStatusState((current) => ({ ...current, state: 'error' }));
+
+    window.addEventListener('farm:operation-pending', markPending);
+    window.addEventListener('farm:operation-synced', markSynced);
+    window.addEventListener('farm:operation-failed', markFailed);
+    return () => {
+      window.removeEventListener('farm:operation-pending', markPending);
+      window.removeEventListener('farm:operation-synced', markSynced);
+      window.removeEventListener('farm:operation-failed', markFailed);
+    };
+  }, []);
+
   const setSyncStatus = useCallback((updater) => {
     setSyncStatusState((previous) => {
       const next = typeof updater === 'function' ? updater(previous) : { ...previous, ...updater };

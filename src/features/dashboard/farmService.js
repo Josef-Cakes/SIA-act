@@ -1,8 +1,39 @@
 import api from '../auth/authService';
+import {
+  configureOfflineSync,
+  enqueueOperation,
+  pendingOperationResponse,
+} from './offlineQueue';
 
-export const postLogAction = async (data) => {
+const createOperationId = () => globalThis.crypto?.randomUUID?.()
+  || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const sendLogAction = async (data) => {
   const response = await api.post('/dashboard/log-action', data);
   return response.data;
+};
+
+configureOfflineSync(sendLogAction);
+
+export const postLogAction = async (data) => {
+  const operationId = data?.operationId
+    || createOperationId();
+  const payload = { ...data, operationId };
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    await enqueueOperation(payload);
+    return pendingOperationResponse(payload);
+  }
+
+  try {
+    return await sendLogAction(payload);
+  } catch (error) {
+    if (!error?.response) {
+      await enqueueOperation(payload);
+      return pendingOperationResponse(payload);
+    }
+    throw error;
+  }
 };
 
 export const getDashboardStats = async () => {

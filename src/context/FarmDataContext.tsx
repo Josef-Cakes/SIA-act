@@ -44,6 +44,7 @@ export interface DashboardRecentLog {
   batchId: number;
   batchName?: string;
   quantity: number;
+  measuredQuantity?: number | null;
   remarks?: string;
   timestamp: string;
 }

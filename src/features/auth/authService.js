@@ -26,6 +26,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// The server is authoritative for session validity. Clear stale local state
+// when a token is revoked, expired, or no longer grants the same role.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const requestUrl = error?.config?.url || '';
+    const isAuthRequest = requestUrl.includes('/login') || requestUrl.includes('/register');
+    if (status === 401 && !isAuthRequest && typeof window !== 'undefined') {
+      clearUserSession();
+      window.dispatchEvent(new Event('auth:expired'));
+    }
+    return Promise.reject(error);
+  }
+);
+
 // =============================================
 // AUTH APIS
 // =============================================
