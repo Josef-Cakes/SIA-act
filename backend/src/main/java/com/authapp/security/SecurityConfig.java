@@ -9,9 +9,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -26,10 +26,12 @@ import java.util.List;
  * Security Configuration with Role-Based Access Control (RBAC).
  *
  * Access Rules:
- * - /api/admin/**  → ROLE_ADMIN only
- * - /api/handler/** → ROLE_HANDLER only
- * - /api/user/** → Authenticated users (any role)
- * - /api/login, /api/register → Public (no auth required)
+ * - /api/admin/**     → ROLE_ADMIN only
+ * - /api/handler/**   → ROLE_HANDLER only
+ * - /api/user/**      → Authenticated users (any role)
+ * - /api/dashboard/** → Authenticated users (any role)
+ * - /api/login, /api/register, /api/auth/** → Public authentication routes
+ * - /health, /, /favicon.ico → Public health/static routes
  */
 @Configuration
 @EnableWebSecurity
@@ -38,7 +40,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    // Override with APP_CORS_ALLOWED_ORIGINS in each deployment environment.
+    @Value("${app.cors.allowed-origins:https://sia-act.vercel.app,https://sia-act.onrender.com,http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
@@ -46,62 +49,37 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF for REST API
-            .csrf(AbstractHttpConfigurer::disable)
-
-            // JWT is the only supported authentication mechanism. Do not
-            // expose Spring's generated Basic/form-login credentials.
+            // JWT is the only supported authentication mechanism.
             .httpBasic(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable)
-
-            // Configure CORS
+            .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-            // Stateless session (JWT-based)
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-
-            // Authorization rules
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints (no authentication required)
-                .requestMatchers(HttpMethod.GET, "/health").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/", "/health", "/favicon.ico").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
 
-                // Legacy/demo APIs are not a second write path. They expose
-                // raw entities and do not carry farm/assignment context.
-                // Keep them disabled until they are replaced by versioned,
-                // scoped DTO endpoints.
+                // Legacy/demo write paths are retired in favor of versioned,
+                // scoped operation endpoints.
                 .requestMatchers("/api/farmville/**", "/api/profiles/**").denyAll()
                 .requestMatchers("/api/dashboard/log-action").denyAll()
-                // Generic handler log writes bypass operation typing and are
-                // intentionally retired in favor of /api/v1/operations.
                 .requestMatchers("/api/handler/logs").denyAll()
 
-                // Admin-only endpoints
                 .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/api/analytics/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/api/inventory/**").hasAuthority("ROLE_ADMIN")
                 .requestMatchers("/api/logs/**").hasAuthority("ROLE_ADMIN")
-
-                // Handler-only endpoints
                 .requestMatchers("/api/handler/**").hasAuthority("ROLE_HANDLER")
-
-                // Profile photo endpoints (public read for avatars, authenticated write)
                 .requestMatchers(HttpMethod.GET, "/api/user/photo/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/user/photo/**").authenticated()
-
-                // User endpoints (any authenticated user)
                 .requestMatchers("/api/user/**").authenticated()
-
-                // All other requests require authentication
+                .requestMatchers("/api/dashboard/**").authenticated()
                 .anyRequest().authenticated()
             )
-
-            // Custom exception handling for unauthorized/forbidden requests
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setContentType("application/json");
@@ -114,8 +92,6 @@ public class SecurityConfig {
                     response.getWriter().write("{\"success\":false,\"message\":\"Forbidden: Insufficient permissions\"}");
                 })
             )
-
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -125,7 +101,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(parseAllowedOrigins());
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
@@ -141,11 +117,7 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    /**
-     * Prevent Spring Boot from creating and advertising a random development
-     * password. Authentication is handled by the JWT filter and database
-     * users; this deliberately empty service is never used for login.
-     */
+    /** Prevent Spring Boot from advertising a generated development password. */
     @Bean
     public UserDetailsService userDetailsService() {
         return new InMemoryUserDetailsManager();

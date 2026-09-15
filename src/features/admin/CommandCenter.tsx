@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Tractor,
   AlertTriangle,
@@ -44,7 +45,8 @@ function formatCurrency(value: number) {
 }
 
 function formatTimeAgo(timestamp: string) {
-  const parsed = new Date(timestamp);
+  const normalizedTimestamp = timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`;
+  const parsed = new Date(normalizedTimestamp);
   if (Number.isNaN(parsed.getTime())) return 'Just now';
 
   const diffMinutes = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 60000));
@@ -138,6 +140,8 @@ function StatCard({ title, value, changeLabel, icon, sparkline }: StatCardProps)
 }
 
 function ActivityItem({ type, message, time, handlerName, status = 'success' }: ActivityItemProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const icons = {
     feed: <Droplets className="w-4 h-4" />,
     alert: <AlertTriangle className="w-4 h-4" />,
@@ -152,17 +156,22 @@ function ActivityItem({ type, message, time, handlerName, status = 'success' }: 
   };
 
   return (
-    <div className="flex items-start gap-3 p-3 rounded-input hover:bg-white/5 transition-colors">
+    <div
+      className="flex items-start gap-3 p-3 rounded-input hover:bg-white/5 transition-colors cursor-pointer"
+      onClick={() => setIsExpanded(!isExpanded)}
+    >
       <div className={`p-2 rounded-input ${statusColors[status]}`}>
         {icons[type]}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-midnight-navy px-2.5 py-1 text-[11px] font-medium text-slate-200">
-            <UserRound className="w-3 h-3 text-veridian-sky" />
-            {handlerName}
-          </span>
-        </div>
+        {isExpanded && (
+          <div className="mb-1 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-midnight-navy px-2.5 py-1 text-[11px] font-medium text-slate-200">
+              <UserRound className="w-3 h-3 text-veridian-sky" />
+              {handlerName}
+            </span>
+          </div>
+        )}
         <p className="text-sm text-white">{message}</p>
         <p className="text-xs text-slate-caption flex items-center gap-1 mt-1">
           <Clock className="w-3 h-3" />
@@ -246,6 +255,7 @@ function PerformanceChart({ data }: { data: ActivityTrendDatum[] }) {
 }
 
 export default function CommandCenter() {
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const { refreshFarmData } = useFarmData();
   const {
@@ -411,19 +421,20 @@ export default function CommandCenter() {
         <h3 className="text-base font-semibold text-white mb-4">Quick Actions</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Review Analytics', icon: TrendingUp, color: 'text-veridian-emerald' },
-            { label: 'Health Check', icon: Activity, color: 'text-veridian-sky' },
-            { label: 'View Reports', icon: Bell, color: 'text-veridian-amber' },
-            { label: 'Manage Alerts', icon: AlertTriangle, color: 'text-veridian-rose' },
-          ].map((action) => {
-            const Icon = action.icon;
+            { label: 'Review Analytics', icon: TrendingUp, color: 'text-veridian-emerald', action: () => navigate('/admin/analytics') },
+            { label: 'Health Check', icon: Activity, color: 'text-veridian-sky', action: () => navigate('/admin/livestock') },
+            { label: 'View Reports', icon: Bell, color: 'text-veridian-amber', action: () => navigate('/admin/analytics') },
+            { label: 'Manage Alerts', icon: AlertTriangle, color: 'text-veridian-rose', action: () => alert('Alert management module coming soon.') },
+          ].map((item) => {
+            const Icon = item.icon;
             return (
               <button
-                key={action.label}
+                key={item.label}
+                onClick={item.action}
                 className="flex items-center gap-3 p-4 rounded-input border border-white/10 hover:border-veridian-emerald/30 hover:bg-white/5 transition-all"
               >
-                <Icon className={`w-5 h-5 ${action.color}`} />
-                <span className="text-sm text-white">{action.label}</span>
+                <Icon className={`w-5 h-5 ${item.color}`} />
+                <span className="text-sm text-white">{item.label}</span>
               </button>
             );
           })}
