@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ResourceEfficiencyPointDTO {
     private String date;
-    private Long feedConsumed;
+    private Double feedConsumed;
     private Double survivalRate;
     private Long activePopulation;
 }

@@ -4,6 +4,7 @@ import com.authapp.cache.CacheNames;
 import com.authapp.dto.ActivityTrendPointDTO;
 import com.authapp.dto.BusinessTrendPointDTO;
 import com.authapp.dto.DailyDoubleMetricDTO;
+import com.authapp.dto.DailyDecimalMetricDTO;
 import com.authapp.dto.DailyLongMetricDTO;
 import com.authapp.dto.DashboardAnalyticsDTO;
 import com.authapp.dto.ResourceEfficiencyPointDTO;
@@ -24,8 +25,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -34,8 +33,6 @@ public class AnalyticsService {
 
     private static final int TREND_DAYS = 7;
     private static final String DEFAULT_RANGE = "7d";
-    private static final Pattern MORTALITY_QUANTITY_PATTERN = Pattern.compile("(\\d+)");
-
     private final BatchRepository batchRepository;
     private final EventRepository eventRepository;
     private final SaleRepository saleRepository;
@@ -75,13 +72,13 @@ public class AnalyticsService {
             }
         });
 
-        List<ActivityLog> mortalityLogs = trendRange == TrendRange.ALL_TIME
-                ? activityLogRepository.findByActionContainingIgnoreCaseOrderByTimestampAsc("mortality")
-                : activityLogRepository.findByActionContainingIgnoreCaseAndTimestampGreaterThanEqualOrderByTimestampAsc("mortality", since);
-        mortalityLogs.forEach(log -> {
-            LocalDate date = log.getTimestamp().toLocalDate();
-            if (byDay.containsKey(date)) {
-                byDay.get(date).addMortalityCount(extractMortalityQuantity(log.getAction()));
+        List<DailyLongMetricDTO> mortalityPoints = trendRange == TrendRange.ALL_TIME
+                ? eventRepository.sumMortalityQuantityByDayAllTime()
+                : eventRepository.sumMortalityQuantityByDaySince(since);
+        mortalityPoints.forEach(point -> {
+            LocalDate date = parseDate(point.getDate());
+            if (date != null && byDay.containsKey(date)) {
+                byDay.get(date).addMortalityCount(defaultLong(point.getValue()));
             }
         });
 
@@ -135,11 +132,11 @@ public class AnalyticsService {
             cursor = cursor.plusDays(1);
         }
 
-        List<DailyLongMetricDTO> feedPoints = eventRepository.sumFeedingQuantityByDaySinceAndLivestockId(livestockId, since);
+        List<DailyDecimalMetricDTO> feedPoints = eventRepository.sumFeedingQuantityByDaySinceAndLivestockId(livestockId, since);
         feedPoints.forEach(point -> {
             LocalDate date = parseDate(point.getDate());
             if (date != null && byDay.containsKey(date)) {
-                byDay.get(date).setFeedConsumed(defaultLong(point.getValue()));
+                byDay.get(date).setFeedConsumed(point.getValue() != null ? point.getValue().doubleValue() : 0.0);
             }
         });
 
@@ -210,7 +207,7 @@ public class AnalyticsService {
 
         List<LocalDate> candidateDates = new ArrayList<>();
         addCandidate(candidateDates, saleRepository.findEarliestCreatedAt());
-        addCandidate(candidateDates, activityLogRepository.findEarliestTimestampByActionKeyword("mortality"));
+        addCandidate(candidateDates, eventRepository.findEarliestCreatedAtByEventTypeCode("MORTALITY"));
         addCandidate(candidateDates, eventRepository.findEarliestCreatedAt());
         addCandidate(candidateDates, batchRepository.findEarliestCreatedAt());
 
@@ -297,19 +294,6 @@ public class AnalyticsService {
         }
     }
 
-    private long extractMortalityQuantity(String action) {
-        if (action == null || action.isBlank()) {
-            return 0L;
-        }
-
-        Matcher matcher = MORTALITY_QUANTITY_PATTERN.matcher(action);
-        if (matcher.find()) {
-            return Long.parseLong(matcher.group(1));
-        }
-
-        return 1L;
-    }
-
     private Long defaultLong(Long value) {
         return value != null ? value : 0L;
     }
@@ -376,15 +360,15 @@ public class AnalyticsService {
     }
 
     private static final class ResourceEfficiencyAccumulator {
-        private long feedConsumed;
+        private double feedConsumed;
         private double survivalRate;
         private long activePopulation;
 
-        public long getFeedConsumed() {
+        public double getFeedConsumed() {
             return feedConsumed;
         }
 
-        public void setFeedConsumed(long feedConsumed) {
+        public void setFeedConsumed(double feedConsumed) {
             this.feedConsumed = feedConsumed;
         }
 

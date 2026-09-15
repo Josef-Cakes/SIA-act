@@ -12,4 +12,5 @@ public class DashboardBatchOptionDTO {
     private String name;
     private String livestockType;
     private Integer currentCount;
+    private String qrCode;
 }

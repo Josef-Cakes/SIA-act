@@ -144,7 +144,8 @@ public class ApiAuditInterceptor implements HandlerInterceptor {
             return null;
         }
 
-        if (requestUri.startsWith("/api/dashboard/log-action")) {
+        if (requestUri.startsWith("/api/dashboard/log-action")
+                || requestUri.startsWith("/api/v1/operations")) {
             return null;
         }
 
@@ -189,16 +190,6 @@ public class ApiAuditInterceptor implements HandlerInterceptor {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-
         return request.getRemoteAddr();
     }
 }

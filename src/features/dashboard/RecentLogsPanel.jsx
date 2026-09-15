@@ -2,7 +2,8 @@ import { Clock3 } from 'lucide-react';
 import { getActionConfig, getActionSummary } from './dashboardActionConfig';
 
 function formatTimeAgo(timestamp) {
-  const parsed = new Date(timestamp);
+  const normalizedTimestamp = typeof timestamp === 'string' && !timestamp.endsWith('Z') ? `${timestamp}Z` : timestamp;
+  const parsed = new Date(normalizedTimestamp);
   if (Number.isNaN(parsed.getTime())) {
     return 'Just now';
   }
