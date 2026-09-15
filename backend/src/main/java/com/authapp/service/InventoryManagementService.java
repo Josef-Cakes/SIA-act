@@ -7,6 +7,7 @@ import com.authapp.dto.InventoryBatchDTO;
 import com.authapp.dto.LivestockSummaryDTO;
 import com.authapp.entity.Batch;
 import com.authapp.entity.Livestock;
+import com.authapp.entity.Role;
 import com.authapp.entity.User;
 import com.authapp.repository.BatchRepository;
 import com.authapp.repository.LivestockRepository;
@@ -33,18 +34,24 @@ public class InventoryManagementService {
     private final EventLogger eventLogger;
 
     @Transactional(readOnly = true)
-    @Cacheable(value = CacheNames.FARM_DATA, key = "'dashboard-livestock-summaries'")
-    public List<LivestockSummaryDTO> getLivestockSummaries() {
-        return livestockRepository.findLivestockSummaries();
+    @Cacheable(value = CacheNames.FARM_DATA, key = "'dashboard-livestock-summaries-' + #userId")
+    public List<LivestockSummaryDTO> getLivestockSummaries(Long userId) {
+        return isAdmin(userId)
+                ? livestockRepository.findLivestockSummaries()
+                : livestockRepository.findLivestockSummariesByUserId(userId);
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = CacheNames.FARM_DATA, key = "'dashboard-livestock-batches-' + #livestockId")
-    public List<InventoryBatchDTO> getBatchesForLivestock(Long livestockId) {
+    @Cacheable(value = CacheNames.FARM_DATA, key = "'dashboard-livestock-batches-' + #userId + '-' + #livestockId")
+    public List<InventoryBatchDTO> getBatchesForLivestock(Long userId, Long livestockId) {
         Livestock livestock = livestockRepository.findById(livestockId)
                 .orElseThrow(() -> new EntityNotFoundException("Livestock type not found."));
 
-        return batchRepository.findByLivestockIdOrderByCreatedAtDesc(livestock.getId()).stream()
+        List<Batch> batches = isAdmin(userId)
+                ? batchRepository.findActiveWithUserAndLivestockByLivestockIdOrderByCreatedAtDesc(livestock.getId())
+                : batchRepository.findActiveWithLivestockByUserIdAndLivestockId(userId, livestock.getId());
+
+        return batches.stream()
                 .map(batch -> mapBatch(batch, livestock))
                 .toList();
     }
@@ -117,7 +124,8 @@ public class InventoryManagementService {
                 batch.getInitialCount(),
                 batch.getCurrentCount(),
                 batch.getArrivalDate(),
-                ageInDays
+                ageInDays,
+                batch.getQrCode()
         );
     }
 
@@ -153,5 +161,11 @@ public class InventoryManagementService {
         }
 
         return action.length() <= 100 ? action : action.substring(0, 100);
+    }
+
+    private boolean isAdmin(Long userId) {
+        return userRepository.findById(userId)
+                .map(user -> user.getRole() == Role.ROLE_ADMIN)
+                .orElse(false);
     }
 }

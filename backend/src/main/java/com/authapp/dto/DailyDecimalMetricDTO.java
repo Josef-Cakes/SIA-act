@@ -4,12 +4,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResourceEfficiencyPointDTO {
+public class DailyDecimalMetricDTO {
     private String date;
-    private Double feedConsumed;
-    private Double survivalRate;
-    private Long activePopulation;
+    private BigDecimal value;
 }

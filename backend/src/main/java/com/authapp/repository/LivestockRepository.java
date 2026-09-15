@@ -5,6 +5,7 @@ import com.authapp.entity.Livestock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,4 +36,21 @@ public interface LivestockRepository extends JpaRepository<Livestock, Long> {
             ORDER BY l.type ASC
             """)
     List<LivestockSummaryDTO> findLivestockSummaries();
+
+    @Query("""
+            SELECT new com.authapp.dto.LivestockSummaryDTO(
+                l.id,
+                l.type,
+                COUNT(b),
+                COALESCE(SUM(b.currentCount), 0)
+            )
+            FROM Livestock l
+            LEFT JOIN l.batches b
+                ON b.user.id = :userId
+               AND b.currentCount > 0
+               AND (b.status IS NULL OR UPPER(b.status) <> 'ARCHIVED')
+            GROUP BY l.id, l.type
+            ORDER BY l.type ASC
+            """)
+    List<LivestockSummaryDTO> findLivestockSummariesByUserId(@Param("userId") Long userId);
 }

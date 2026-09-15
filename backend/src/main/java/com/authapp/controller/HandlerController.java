@@ -2,13 +2,18 @@ package com.authapp.controller;
 
 import com.authapp.cache.CacheNames;
 import com.authapp.dto.ApiResponse;
+import com.authapp.dto.AlertResponse;
+import com.authapp.dto.TaskResponse;
 import com.authapp.entity.ActivityLog;
 import com.authapp.entity.Batch;
 import com.authapp.entity.User;
 import com.authapp.repository.ActivityLogRepository;
 import com.authapp.repository.BatchRepository;
 import com.authapp.repository.UserRepository;
+import com.authapp.security.JwtAuthenticationFilter;
+import com.authapp.service.OperationalWorkService;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -36,24 +41,16 @@ public class HandlerController {
     private final ActivityLogRepository activityLogRepository;
     private final BatchRepository batchRepository;
     private final UserRepository userRepository;
+    private final OperationalWorkService operationalWorkService;
 
     /**
      * GET /api/handler/tasks
      * Returns assigned tasks for the handler.
      */
     @GetMapping("/tasks")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTasks(Authentication auth) {
-        String username = auth.getName();
-
-        List<Map<String, Object>> tasks = Arrays.asList(
-            createTask("T001", "Morning Feeding - Sector A", "Barn A1-A3", "6:00 AM", "completed", "high"),
-            createTask("T002", "Water Level Check", "All Sectors", "8:00 AM", "in_progress", "medium"),
-            createTask("T003", "Health Inspection", "Quarantine Area", "10:00 AM", "pending", "high"),
-            createTask("T004", "Afternoon Feeding - Sector B", "Barn B1-B4", "2:00 PM", "pending", "medium"),
-            createTask("T005", "Equipment Maintenance", "Workshop", "4:00 PM", "pending", "low")
-        );
-
-        return ResponseEntity.ok(ApiResponse.success("Tasks retrieved for handler: " + username, tasks));
+    public ResponseEntity<ApiResponse<List<TaskResponse>>> getTasks(Authentication auth, HttpServletRequest request) {
+        Long userId = requireAuthenticatedUserId(request);
+        return ResponseEntity.ok(ApiResponse.success("Assigned tasks retrieved.", operationalWorkService.getTasksForUser(userId)));
     }
 
     /**
@@ -61,21 +58,23 @@ public class HandlerController {
      * Updates task status.
      */
     @PutMapping("/tasks/{taskId}/status")
-    public ResponseEntity<ApiResponse<String>> updateTaskStatus(
+    public ResponseEntity<ApiResponse<TaskResponse>> updateTaskStatus(
             @PathVariable String taskId,
             @RequestParam String status,
-            Authentication auth
+            HttpServletRequest request
     ) {
-        String username = auth.getName();
-
-        // Validate status
-        List<String> validStatuses = Arrays.asList("pending", "in_progress", "completed");
-        if (!validStatuses.contains(status)) {
-            return ResponseEntity.status(400).body(ApiResponse.error("Invalid status: " + status));
+        Long userId = requireAuthenticatedUserId(request);
+        try {
+            TaskResponse updated = operationalWorkService.updateTaskStatus(
+                    userId,
+                    Long.valueOf(taskId),
+                    status,
+                    resolveClientIp(request)
+            );
+            return ResponseEntity.ok(ApiResponse.success("Task updated successfully", updated));
+        } catch (NumberFormatException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.<TaskResponse>error("Task ID must be numeric."));
         }
-
-        String message = String.format("Task %s status updated to '%s' by handler: %s", taskId, status, username);
-        return ResponseEntity.ok(ApiResponse.success("Task updated successfully", message));
     }
 
     /**
@@ -83,15 +82,9 @@ public class HandlerController {
      * Returns active alerts for handlers.
      */
     @GetMapping("/alerts")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAlerts() {
-        List<Map<String, Object>> alerts = Arrays.asList(
-            createAlert("A001", "Temperature spike detected in Barn 3", "12 min ago", "warning"),
-            createAlert("A002", "Low water level in Tank 2", "1 hour ago", "alert"),
-            createAlert("A003", "Scheduled maintenance reminder", "2 hours ago", "info"),
-            createAlert("A004", "Feed inventory running low", "3 hours ago", "warning")
-        );
-
-        return ResponseEntity.ok(ApiResponse.success("Active alerts retrieved", alerts));
+    public ResponseEntity<ApiResponse<List<AlertResponse>>> getAlerts(HttpServletRequest request) {
+        Long userId = requireAuthenticatedUserId(request);
+        return ResponseEntity.ok(ApiResponse.success("Assigned alerts retrieved.", operationalWorkService.getAlertsForUser(userId)));
     }
 
     /**
@@ -102,7 +95,8 @@ public class HandlerController {
     @CacheEvict(value = CacheNames.FARM_DATA, allEntries = true)
     public ResponseEntity<ApiResponse<Map<String, Object>>> logActivity(
             @RequestBody CreateHandlerLogRequest logData,
-            Authentication auth
+            Authentication auth,
+            HttpServletRequest request
     ) {
         User user = getAuthenticatedUser(auth);
         String action = logData.getAction().trim();
@@ -114,7 +108,7 @@ public class HandlerController {
                 .userId(user.getId())
                 .action(truncateAction(action + detail))
                 .targetId(logData.getTargetId())
-                .ipAddress(logData.getIpAddress())
+                .ipAddress(resolveClientIp(request))
                 .build());
 
         Map<String, Object> payload = new HashMap<>();
@@ -167,24 +161,12 @@ public class HandlerController {
     // HELPER METHODS
     // =============================================
 
-    private Map<String, Object> createTask(String id, String title, String location, String time, String status, String priority) {
-        Map<String, Object> task = new HashMap<>();
-        task.put("id", id);
-        task.put("title", title);
-        task.put("location", location);
-        task.put("time", time);
-        task.put("status", status);
-        task.put("priority", priority);
-        return task;
-    }
-
-    private Map<String, Object> createAlert(String id, String message, String time, String severity) {
-        Map<String, Object> alert = new HashMap<>();
-        alert.put("id", id);
-        alert.put("message", message);
-        alert.put("time", time);
-        alert.put("severity", severity);
-        return alert;
+    private Long requireAuthenticatedUserId(HttpServletRequest request) {
+        Object value = request.getAttribute(JwtAuthenticationFilter.AUTHENTICATED_USER_ID_ATTR);
+        if (value instanceof Long userId) {
+            return userId;
+        }
+        throw new org.springframework.security.access.AccessDeniedException("Permission denied.");
     }
 
     private Map<String, Object> toLivestockPayload(Batch batch) {
@@ -214,6 +196,10 @@ public class HandlerController {
         }
 
         return action.length() <= 100 ? action : action.substring(0, 100);
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        return request.getRemoteAddr();
     }
 
     @Data

@@ -11,6 +11,7 @@ import com.authapp.entity.Event;
 import com.authapp.entity.EventType;
 import com.authapp.entity.Sale;
 import com.authapp.entity.User;
+import com.authapp.entity.Role;
 import com.authapp.repository.BatchRepository;
 import com.authapp.repository.CustomerRepository;
 import com.authapp.repository.EventRepository;
@@ -57,13 +58,23 @@ public class DashboardService {
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.FARM_DATA, key = "'dashboard-stats-' + #userId")
     public DashboardStatsDTO getDashboardStats(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AccessDeniedException("Authenticated user not found."));
+        boolean admin = user.getRole() == Role.ROLE_ADMIN;
+
         return DashboardStatsDTO.builder()
-                .totalLivestock(defaultLong(batchRepository.sumCurrentCount()))
-                .activeBatchCount(defaultLong(batchRepository.countActiveBatches()))
+                .totalLivestock(defaultLong(admin
+                        ? batchRepository.sumCurrentCount()
+                        : batchRepository.sumCurrentCountByUserId(userId)))
+                .activeBatchCount(defaultLong(admin
+                        ? batchRepository.countActiveBatches()
+                        : batchRepository.countActiveBatchesByUserId(userId)))
                 .todayActionCount(defaultLong(
                         eventRepository.countByUserIdAndCreatedAtSince(userId, LocalDateTime.now().minusHours(24))
                 ))
-                .availableBatches(batchRepository.findDashboardBatchOptions())
+                .availableBatches(admin
+                        ? batchRepository.findDashboardBatchOptions()
+                        : batchRepository.findDashboardBatchOptionsByUserId(userId))
                 .build();
     }
 
@@ -86,12 +97,33 @@ public class DashboardService {
         Batch batch = batchRepository.findById(request.getBatchId())
                 .orElseThrow(() -> new IllegalArgumentException("Batch not found."));
 
-        if (batch.getUser() != null && batch.getUser().getId() != null && !batch.getUser().getId().equals(userId)) {
+        boolean admin = user.getRole() == Role.ROLE_ADMIN;
+        if (!admin && (batch.getUser() == null
+                || batch.getUser().getId() == null
+                || !batch.getUser().getId().equals(userId))) {
             throw new AccessDeniedException("You do not have permission to log activity for this batch.");
         }
 
+        String operationId = cleanOperationId(request.getOperationId());
+        if (operationId != null) {
+            Event existingEvent = eventRepository.findByIdempotencyKey(operationId).orElse(null);
+            if (existingEvent != null) {
+                if (!sameRequestedAction(existingEvent, batch, userId, actionType, request)) {
+                    throw new IllegalArgumentException("The operation identifier is already used for another action.");
+                }
+                Sale existingSale = existingEvent.getSale();
+                return buildActionResponse(
+                        existingEvent,
+                        existingSale != null ? existingSale.getId() : null,
+                        existingSale != null && existingSale.getCustomer() != null ? existingSale.getCustomer().getName() : null,
+                        existingSale != null ? existingSale.getUnitPrice() : null,
+                        existingSale != null ? existingSale.getTotalAmount() : null
+                );
+            }
+        }
+
         if ("SALE".equals(actionType)) {
-            return logSaleAction(userId, user, batch, request, ipAddress);
+            return logSaleAction(userId, user, batch, request, ipAddress, operationId);
         }
 
         EventType eventType = eventTypeRepository.findByCode(actionType)
@@ -100,16 +132,18 @@ public class DashboardService {
         Event event = Event.builder()
                 .quantity(request.getQuantity())
                 .unit(resolveUnit(actionType))
+                .measuredQuantity(resolveMeasuredQuantity(actionType, request))
                 .remarks(cleanRemarks(request.getRemarks()))
                 .batch(batch)
                 .eventType(eventType)
                 .user(user)
+                .idempotencyKey(operationId)
                 .build();
 
         Event savedEvent = eventService.createEvent(event);
         eventLogger.logActivity(
                 userId,
-                buildHandlerActionMessage(actionType, savedEvent.getQuantity(), batch.getName()),
+                buildHandlerActionMessage(actionType, savedEvent.getQuantity(), savedEvent.getMeasuredQuantity(), batch.getName()),
                 batch.getId(),
                 ipAddress
         );
@@ -131,7 +165,7 @@ public class DashboardService {
 
     private String resolveUnit(String actionType) {
         return switch (actionType) {
-            case "FEEDING" -> "activity";
+            case "FEEDING" -> "kg";
             case "VACCINATION" -> "dose";
             case "HEALTH_CHECK" -> "inspection";
             case "SALE" -> "head";
@@ -144,7 +178,8 @@ public class DashboardService {
             User user,
             Batch batch,
             DashboardActionRequest request,
-            String ipAddress
+            String ipAddress,
+            String operationId
     ) {
         String customerName = cleanCustomerName(request.getCustomerName());
         Double unitPrice = cleanUnitPrice(request.getUnitPrice());
@@ -177,6 +212,7 @@ public class DashboardService {
                 .eventType(eventType)
                 .user(user)
                 .sale(savedSale)
+                .idempotencyKey(operationId)
                 .build();
 
         Event savedEvent = eventService.createEvent(saleEvent);
@@ -238,9 +274,13 @@ public class DashboardService {
         return builder.toString();
     }
 
-    private String buildHandlerActionMessage(String actionType, Integer quantity, String batchName) {
+    private String buildHandlerActionMessage(String actionType, Integer quantity, BigDecimal measuredQuantity, String batchName) {
         return switch (actionType) {
-            case "FEEDING" -> truncateAction(String.format("Logged feeding x%d for %s", quantity, batchName));
+            case "FEEDING" -> truncateAction(String.format(
+                    "Logged feeding %.2f kg for %s",
+                    measuredQuantity != null ? measuredQuantity.doubleValue() : quantity.doubleValue(),
+                    batchName
+            ));
             case "MORTALITY" -> truncateAction(String.format("Logged %d mortality for %s", quantity, batchName));
             case "VACCINATION" -> truncateAction(String.format("Logged %d medicine for %s", quantity, batchName));
             case "HEALTH_CHECK" -> truncateAction(String.format("Logged health check for %s", batchName));
@@ -276,12 +316,56 @@ public class DashboardService {
                 .batchId(updatedBatch.getId())
                 .batchName(updatedBatch.getName())
                 .quantity(savedEvent.getQuantity())
+                .measuredQuantity(savedEvent.getMeasuredQuantity())
                 .customerName(customerName)
                 .unitPrice(unitPrice)
                 .totalAmount(totalAmount)
                 .updatedCurrentCount(updatedBatch.getCurrentCount())
                 .timestamp(savedEvent.getCreatedAt())
+                .operationId(savedEvent.getIdempotencyKey())
+                .status(savedEvent.getStatus())
+                .correctionOfId(savedEvent.getCorrectionOf() != null ? savedEvent.getCorrectionOf().getId() : null)
                 .build();
+    }
+
+    private String cleanOperationId(String operationId) {
+        if (operationId == null || operationId.isBlank()) {
+            return null;
+        }
+        return operationId.trim();
+    }
+
+    private BigDecimal resolveMeasuredQuantity(String actionType, DashboardActionRequest request) {
+        if (!"FEEDING".equals(actionType)) {
+            return null;
+        }
+
+        BigDecimal measured = request.getMeasuredQuantity();
+        if (measured == null) {
+            measured = BigDecimal.valueOf(request.getQuantity());
+        }
+        if (measured.signum() <= 0) {
+            throw new IllegalArgumentException("Measured feed quantity must be greater than 0.");
+        }
+        return measured.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private boolean sameRequestedAction(
+            Event existingEvent,
+            Batch requestedBatch,
+            Long userId,
+            String actionType,
+            DashboardActionRequest request
+    ) {
+        Long existingUserId = existingEvent.getUser() != null ? existingEvent.getUser().getId() : null;
+        return existingEvent.getBatch() != null
+                && requestedBatch.getId().equals(existingEvent.getBatch().getId())
+                && userId.equals(existingUserId)
+                && actionType.equals(existingEvent.getEventType().getCode())
+                && request.getQuantity().equals(existingEvent.getQuantity())
+                && ("FEEDING".equals(actionType)
+                    ? java.util.Objects.equals(resolveMeasuredQuantity(actionType, request), existingEvent.getMeasuredQuantity())
+                    : existingEvent.getMeasuredQuantity() == null);
     }
 
     private Long defaultLong(Long value) {

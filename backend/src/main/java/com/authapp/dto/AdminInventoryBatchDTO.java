@@ -23,4 +23,5 @@ public class AdminInventoryBatchDTO {
     private Long handlerId;
     private String handlerName;
     private String handlerUsername;
+    private String qrCode;
 }
