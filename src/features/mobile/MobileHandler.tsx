@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   HandCoins,
   LogOut,
   Package,
@@ -31,6 +32,7 @@ import {
   createInventoryBatch,
   createLivestockSpecies,
   postLogAction,
+  updateAssignedOperationalTaskStatus,
 } from '../dashboard/farmService';
 
 type MobileView =
@@ -59,6 +61,7 @@ interface DashboardBatchOption {
   name: string;
   livestockType: string;
   currentCount: number;
+  qrCode?: string | null;
 }
 
 interface DashboardRecentLog {
@@ -418,6 +421,8 @@ export default function MobileHandler() {
     stats: dashboardStats,
     batches: availableBatches,
     recentLogs,
+    tasks,
+    alerts,
     livestock: livestockList,
     isBootstrapping,
     isRefreshing,
@@ -442,6 +447,7 @@ export default function MobileHandler() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus>('searching');
   const [scannedBatchId, setScannedBatchId] = useState<string>('');
+  const [scannerCode, setScannerCode] = useState('');
   const successTimeoutRef = useRef<number | null>(null);
   const scannerDetectTimeoutRef = useRef<number | null>(null);
   const scannerRedirectTimeoutRef = useRef<number | null>(null);
@@ -465,6 +471,13 @@ export default function MobileHandler() {
   });
   const createBatchMutation = useMutation({
     mutationFn: createInventoryBatch,
+    onSuccess: async () => {
+      await invalidateFarmData();
+    },
+  });
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: number; status: string }) =>
+      updateAssignedOperationalTaskStatus(taskId, status),
     onSuccess: async () => {
       await invalidateFarmData();
     },
@@ -502,8 +515,13 @@ export default function MobileHandler() {
   );
 
   const alertCount = useMemo(
-    () => recentLogs.filter((log) => log.actionType === 'MORTALITY').length,
-    [recentLogs]
+    () => alerts.filter((alert) => alert.status !== 'RESOLVED').length,
+    [alerts]
+  );
+
+  const pendingTasks = useMemo(
+    () => tasks.filter((task) => task.status !== 'COMPLETED'),
+    [tasks]
   );
 
   const salesTotalAmount = useMemo(() => {
@@ -568,6 +586,7 @@ export default function MobileHandler() {
     setPendingCreateBatchAfterLivestock(false);
     setScannerStatus('searching');
     setScannedBatchId('');
+    setScannerCode('');
   }, [clearScannerTimers, firstBatchId, firstLivestockId]);
 
   const showSuccessOverlay = useCallback((title: string, message: string, onComplete?: SuccessCallback) => {
@@ -627,36 +646,6 @@ export default function MobileHandler() {
     }
   }, [activeView, livestockList, selectedLivestock]);
 
-  useEffect(() => {
-    if (activeView !== 'scanner' || !hasAvailableBatches) {
-      return undefined;
-    }
-
-    clearScannerTimers();
-    setScannerStatus('searching');
-    setScannedBatchId('');
-
-    const detectedBatch = availableBatches[0];
-    scannerDetectTimeoutRef.current = window.setTimeout(() => {
-      setScannerStatus('detected');
-      setScannedBatchId(String(detectedBatch.id));
-    }, 1400);
-
-    scannerRedirectTimeoutRef.current = window.setTimeout(() => {
-      setFeedingForm(createFeedingForm(String(detectedBatch.id)));
-      setFeedingStep(2);
-      setActiveView('feeding');
-      setToast({
-        type: 'success',
-        message: `${detectedBatch.name} detected. Continue the feeding log below.`,
-      });
-    }, 2500);
-
-    return () => {
-      clearScannerTimers();
-    };
-  }, [activeView, availableBatches, clearScannerTimers, hasAvailableBatches]);
-
   const openInventoryFlow = () => {
     setActiveView('livestock');
   };
@@ -707,7 +696,40 @@ export default function MobileHandler() {
 
   const openScannerFlow = () => {
     if (!hasAvailableBatches) return;
+    clearScannerTimers();
+    setScannerStatus('searching');
+    setScannedBatchId('');
+    setScannerCode('');
     setActiveView('scanner');
+  };
+
+  const handleBatchCodeScan = () => {
+    const normalizedCode = scannerCode.trim().toLowerCase();
+    if (!normalizedCode) {
+      setToast({ type: 'error', message: 'Enter the code printed on the batch label.' });
+      return;
+    }
+
+    const detectedBatch = availableBatches.find((batch) =>
+      batch.qrCode?.trim().toLowerCase() === normalizedCode
+      || String(batch.id) === normalizedCode
+    );
+
+    if (!detectedBatch) {
+      setScannerStatus('searching');
+      setToast({ type: 'error', message: 'That label is not assigned to one of your active batches.' });
+      return;
+    }
+
+    setScannerStatus('detected');
+    setScannedBatchId(String(detectedBatch.id));
+    setFeedingForm(createFeedingForm(String(detectedBatch.id)));
+    setFeedingStep(2);
+    setActiveView('feeding');
+    setToast({
+      type: 'success',
+      message: `${detectedBatch.name} detected. Continue the feeding log below.`,
+    });
   };
 
   const handleBack = () => {
@@ -1154,6 +1176,61 @@ export default function MobileHandler() {
                     />
                   </section>
 
+                  {pendingTasks.length > 0 ? (
+                    <section className="mt-5 rounded-[24px] border border-veridian-amber/25 bg-veridian-amber/10 p-4 shadow-card">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ClipboardList className="h-5 w-5 text-veridian-amber" />
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-veridian-amber">Assigned work</p>
+                            <h2 className="mt-1 text-base font-semibold text-white">Finish the shift cleanly</h2>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-slate-200">{pendingTasks.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {pendingTasks.slice(0, 3).map((task) => {
+                          const isUpdating = updateTaskMutation.isPending
+                            && updateTaskMutation.variables?.taskId === task.id;
+                          return (
+                            <article key={task.id} className="rounded-[18px] border border-white/10 bg-midnight-navy/60 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-white">{task.title}</p>
+                                  <p className="mt-1 text-xs text-slate-caption">
+                                    {task.locationLabel || 'No location'} · {task.priority}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase text-slate-300">{task.status.replace('_', ' ')}</span>
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                {task.status === 'PENDING' ? (
+                                  <button
+                                    type="button"
+                                    disabled={isUpdating}
+                                    onClick={() => updateTaskMutation.mutate({ taskId: task.id, status: 'IN_PROGRESS' })}
+                                    className="min-h-touch flex-1 rounded-input border border-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/10 disabled:opacity-60"
+                                  >
+                                    Start
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  disabled={isUpdating}
+                                  onClick={() => updateTaskMutation.mutate({ taskId: task.id, status: 'COMPLETED' })}
+                                  className="min-h-touch flex-1 rounded-input bg-veridian-emerald px-3 py-2 text-xs font-medium text-midnight-navy hover:bg-veridian-emerald/90 disabled:opacity-60"
+                                >
+                                  {isUpdating ? 'Saving…' : 'Complete'}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                      {pendingTasks.length > 3 ? <p className="mt-3 text-xs text-slate-caption">Showing the next three assigned tasks.</p> : null}
+                    </section>
+                  ) : null}
+
                   <button
                     type="button"
                     onClick={() => void openInventoryFlow()}
@@ -1228,7 +1305,7 @@ export default function MobileHandler() {
                         </div>
                         <div>
                           <p className="text-sm font-semibold">Scan QR</p>
-                          <p className="mt-0.5 text-xs text-slate-caption">Simulate a batch scan and jump to Feeding.</p>
+                          <p className="mt-0.5 text-xs text-slate-caption">Scan a printed batch label or enter its code.</p>
                         </div>
                       </div>
                       <ChevronRight className="h-5 w-5 text-slate-300" />
@@ -1291,22 +1368,22 @@ export default function MobileHandler() {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="flex-1 overflow-y-auto px-4 py-5">
                     <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-caption">Scanner Simulation</p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">Finding a nearby batch tag</h3>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-caption">Batch QR scanner</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">Identify the physical batch label</h3>
                       <p className="mt-2 text-sm text-slate-caption">
-                        This simulates the camera flow on web, then drops you into Feeding for the detected batch.
+                        Use a camera or hardware QR scanner that types into the field below, or enter the printed code manually when the camera is unavailable.
                       </p>
                     </div>
 
                     <div className="relative mt-5 overflow-hidden rounded-[30px] border border-veridian-sky/30 bg-[linear-gradient(180deg,_rgba(2,6,23,0.88)_0%,_rgba(14,165,233,0.08)_100%)] p-4">
                       <div className="mb-4 flex items-center justify-between">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
                           <Camera className="h-4 w-4" />
-                          Web Camera Preview
+                          Camera / manual input
                         </div>
                         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
                           <ScanLine className={`h-4 w-4 ${scannerStatus === 'searching' ? 'animate-pulse' : ''}`} />
-                          {scannerStatus === 'searching' ? 'Scanning...' : 'Tag detected'}
+                          {scannerStatus === 'searching' ? 'Awaiting code' : 'Tag detected'}
                         </div>
                       </div>
 
@@ -1322,14 +1399,37 @@ export default function MobileHandler() {
                             <ScanLine className="h-12 w-12 text-veridian-sky" />
                           </div>
                           <p className="mt-6 text-lg font-semibold text-white">
-                            {scannerStatus === 'searching' ? 'Align batch QR code inside the frame' : 'Batch identified'}
+                            {scannerStatus === 'searching' ? 'Scan or enter a batch code' : 'Batch identified'}
                           </p>
                           <p className="mt-2 text-sm text-slate-300">
                             {scannerStatus === 'searching'
-                              ? 'Analyzing the tag and matching it to the active batches in your inventory.'
+                              ? 'Enter the durable code printed on the label to match it to your assigned batches.'
                               : `${scannedBatch?.name || 'Batch'} is ready for feeding details.`}
                           </p>
                         </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <label htmlFor="batch-qr-code" className="veridian-label">Printed batch code</label>
+                        <div className="flex gap-2">
+                          <input
+                            id="batch-qr-code"
+                            type="text"
+                            inputMode="text"
+                            autoCapitalize="characters"
+                            className="veridian-input flex-1"
+                            placeholder="e.g. FARM-BATCH-..."
+                            value={scannerCode}
+                            onChange={(event) => setScannerCode(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') handleBatchCodeScan();
+                            }}
+                          />
+                          <button type="button" onClick={handleBatchCodeScan} className="veridian-btn-primary px-5">
+                            Resolve
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-caption">The server generates this code when a batch is created.</p>
                       </div>
                     </div>
                   </div>
@@ -1375,7 +1475,7 @@ export default function MobileHandler() {
                             </div>
                             <div>
                               <p className="text-base font-semibold">Scan QR</p>
-                              <p className="text-sm text-slate-200">Simulate detection to jump into the right batch.</p>
+                              <p className="text-sm text-slate-200">Scan a printed label or enter its code to open the right batch.</p>
                             </div>
                           </div>
                           <ChevronRight className="h-5 w-5 text-slate-300" />

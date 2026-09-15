@@ -10,6 +10,7 @@ import HandlersView from './features/admin/HandlersView';
 import LivestockView from './features/admin/LivestockView';
 import AnalyticsView from './features/admin/AnalyticsView';
 import SettingsView from './features/admin/SettingsView';
+import OperationsView from './features/admin/OperationsView';
 import MobileHandler from './features/mobile/MobileHandler';
 import ProtectedRoute, { AdminRoute, HandlerRoute } from './components/ProtectedRoute';
 import Spinner from './components/Spinner';
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="handlers" element={<HandlersView />} />
         <Route path="livestock" element={<LivestockView />} />
         <Route path="analytics" element={<AnalyticsView />} />
+        <Route path="operations" element={<OperationsView />} />
         <Route path="settings" element={<SettingsView />} />
       </Route>
 
