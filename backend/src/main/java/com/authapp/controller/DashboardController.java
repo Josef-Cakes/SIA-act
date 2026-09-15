@@ -48,6 +48,10 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success("Recent dashboard logs retrieved successfully.", logs));
     }
 
+    /**
+     * Retained only as a source-compatible controller for old clients. The
+     * route is denied by SecurityConfig; all writes must use /api/v1/operations.
+     */
     @PostMapping("/log-action")
     public ResponseEntity<ApiResponse<DashboardActionResponse>> logAction(
             @Valid @RequestBody DashboardActionRequest requestBody,
@@ -56,14 +60,18 @@ public class DashboardController {
         Long userId = requireAuthenticatedUserId(request);
         String ipAddress = resolveClientIp(request);
 
+        if (requestBody.getOperationId() == null || requestBody.getOperationId().isBlank()) {
+            requestBody.setOperationId(request.getHeader("Idempotency-Key"));
+        }
+
         DashboardActionResponse response = dashboardService.logAction(userId, requestBody, ipAddress);
         return ResponseEntity.ok(ApiResponse.success("Dashboard action logged successfully.", response));
     }
 
     @GetMapping("/livestock")
     public ResponseEntity<ApiResponse<List<LivestockSummaryDTO>>> getLivestockSummaries(HttpServletRequest request) {
-        requireAuthenticatedUserId(request);
-        List<LivestockSummaryDTO> livestock = inventoryManagementService.getLivestockSummaries();
+        Long userId = requireAuthenticatedUserId(request);
+        List<LivestockSummaryDTO> livestock = inventoryManagementService.getLivestockSummaries(userId);
         return ResponseEntity.ok(ApiResponse.success("Livestock inventory retrieved successfully.", livestock));
     }
 
@@ -72,8 +80,8 @@ public class DashboardController {
             @PathVariable Long livestockId,
             HttpServletRequest request
     ) {
-        requireAuthenticatedUserId(request);
-        List<InventoryBatchDTO> batches = inventoryManagementService.getBatchesForLivestock(livestockId);
+        Long userId = requireAuthenticatedUserId(request);
+        List<InventoryBatchDTO> batches = inventoryManagementService.getBatchesForLivestock(userId, livestockId);
         return ResponseEntity.ok(ApiResponse.success("Batch inventory retrieved successfully.", batches));
     }
 
@@ -115,16 +123,8 @@ public class DashboardController {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-
+        // Forwarded headers are client-controlled unless a trusted proxy has
+        // been explicitly configured. Use the servlet peer address here.
         return request.getRemoteAddr();
     }
 }

@@ -156,7 +156,7 @@ function ActivityItem({ type, message, time, handlerName, status = 'success' }: 
   };
 
   return (
-    <div 
+    <div
       className="flex items-start gap-3 p-3 rounded-input hover:bg-white/5 transition-colors cursor-pointer"
       onClick={() => setIsExpanded(!isExpanded)}
     >

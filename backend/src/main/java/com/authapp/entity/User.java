@@ -3,6 +3,7 @@ package com.authapp.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -33,6 +34,7 @@ public class User {
 
     @NotBlank(message = "Password is required")
     @Column(name = "password", nullable = false)
+    @JsonIgnore
     private String password;  // Stored as BCrypt hash
 
     // Role-Based Access Control
@@ -43,9 +45,11 @@ public class User {
 
     // Profile image stored as BLOB/byte array in DB
     @Column(name = "profile_image", columnDefinition = "bytea")
+    @JsonIgnore
     private byte[] profileImage;
 
     @Column(name = "profile_image_type", length = 50)
+    @JsonIgnore
     private String profileImageType; // e.g., "image/jpeg", "image/png"
 
     @Column(name = "full_name", length = 100)

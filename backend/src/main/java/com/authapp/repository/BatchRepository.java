@@ -2,7 +2,9 @@ package com.authapp.repository;
 
 import com.authapp.dto.DashboardBatchOptionDTO;
 import com.authapp.entity.Batch;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,7 +16,20 @@ import java.util.Optional;
 @Repository
 public interface BatchRepository extends JpaRepository<Batch, Long> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Batch b JOIN FETCH b.livestock WHERE b.id = :batchId")
+    Optional<Batch> findByIdForUpdate(@Param("batchId") Long batchId);
+
     List<Batch> findByLivestockIdOrderByCreatedAtDesc(Long livestockId);
+
+    @Query("""
+            SELECT b
+            FROM Batch b
+            LEFT JOIN FETCH b.user
+            JOIN FETCH b.livestock
+            WHERE b.qrCode = :qrCode
+            """)
+    Optional<Batch> findByQrCode(@Param("qrCode") String qrCode);
 
     List<Batch> findByUserIdOrderByCreatedAtDesc(Long userId);
 
@@ -31,6 +46,21 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
 
     @Query("SELECT b FROM Batch b JOIN FETCH b.livestock WHERE b.user.id = :userId ORDER BY b.createdAt DESC")
     List<Batch> findWithLivestockByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT b
+            FROM Batch b
+            JOIN FETCH b.livestock l
+            WHERE b.user.id = :userId
+              AND l.id = :livestockId
+              AND b.currentCount > 0
+              AND (b.status IS NULL OR UPPER(b.status) <> 'ARCHIVED')
+            ORDER BY b.createdAt DESC
+            """)
+    List<Batch> findActiveWithLivestockByUserIdAndLivestockId(
+            @Param("userId") Long userId,
+            @Param("livestockId") Long livestockId
+    );
 
     @Query("""
             SELECT b
@@ -98,13 +128,30 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
                 b.id,
                 b.name,
                 b.livestock.type,
-                b.currentCount
+                b.currentCount,
+                b.qrCode
             )
             FROM Batch b
             WHERE b.currentCount > 0
             ORDER BY b.createdAt DESC
             """)
     List<DashboardBatchOptionDTO> findDashboardBatchOptions();
+
+    @Query("""
+            SELECT new com.authapp.dto.DashboardBatchOptionDTO(
+                b.id,
+                b.name,
+                b.livestock.type,
+                b.currentCount,
+                b.qrCode
+            )
+            FROM Batch b
+            WHERE b.user.id = :userId
+              AND b.currentCount > 0
+              AND (b.status IS NULL OR UPPER(b.status) <> 'ARCHIVED')
+            ORDER BY b.createdAt DESC
+            """)
+    List<DashboardBatchOptionDTO> findDashboardBatchOptionsByUserId(@Param("userId") Long userId);
 
     @Query("""
             SELECT new com.authapp.dto.DailyLongMetricDTO(

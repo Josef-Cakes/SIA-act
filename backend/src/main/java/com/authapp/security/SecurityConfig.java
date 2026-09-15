@@ -9,8 +9,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -28,8 +30,8 @@ import java.util.List;
  * - /api/handler/**   → ROLE_HANDLER only
  * - /api/user/**      → Authenticated users (any role)
  * - /api/dashboard/** → Authenticated users (any role)
- * - /api/auth/**      → Public (no auth required)
- * - /health, /        → Public (no auth required)
+ * - /api/login, /api/register, /api/auth/** → Public authentication routes
+ * - /health, /, /favicon.ico → Public health/static routes
  */
 @Configuration
 @EnableWebSecurity
@@ -38,9 +40,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    // IMPORTANT: Default now includes the Vercel frontend URL.
-    // Override in application.properties or as an environment variable on Render:
-    //   app.cors.allowed-origins=https://your-frontend.vercel.app,http://localhost:3000
+    // Override with APP_CORS_ALLOWED_ORIGINS in each deployment environment.
     @Value("${app.cors.allowed-origins:https://sia-act.vercel.app,https://sia-act.onrender.com,http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
@@ -51,29 +51,46 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            // JWT is the only supported authentication mechanism.
+            .httpBasic(AbstractHttpConfigurer::disable)
+            .formLogin(AbstractHttpConfigurer::disable)
             .csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-
-                // 1) Allow ALL OPTIONS preflight requests — must be first
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/", "/health", "/favicon.ico").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/login", "/api/register").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
 
-                // 2) Health check / root
-                .requestMatchers("/", "/health").permitAll()
+                // Legacy/demo write paths are retired in favor of versioned,
+                // scoped operation endpoints.
+                .requestMatchers("/api/farmville/**", "/api/profiles/**").denyAll()
+                .requestMatchers("/api/dashboard/log-action").denyAll()
+                .requestMatchers("/api/handler/logs").denyAll()
 
-                // 3) Public auth endpoints
-                .requestMatchers("/api/login", "/api/register", "/api/auth/**").permitAll()
-
-                // 4) RBAC rules
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/handler/**").hasRole("HANDLER")
+                .requestMatchers("/api/admin/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/analytics/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/inventory/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/logs/**").hasAuthority("ROLE_ADMIN")
+                .requestMatchers("/api/handler/**").hasAuthority("ROLE_HANDLER")
+                .requestMatchers(HttpMethod.GET, "/api/user/photo/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/user/photo/**").authenticated()
                 .requestMatchers("/api/user/**").authenticated()
-
-                // 5) Dashboard — requires a valid JWT (any authenticated role)
                 .requestMatchers("/api/dashboard/**").authenticated()
-
                 .anyRequest().authenticated()
+            )
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(401);
+                    response.getWriter().write("{\"success\":false,\"message\":\"Unauthorized: Authentication required\"}");
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(403);
+                    response.getWriter().write("{\"success\":false,\"message\":\"Forbidden: Insufficient permissions\"}");
+                })
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -98,6 +115,12 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /** Prevent Spring Boot from advertising a generated development password. */
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return new InMemoryUserDetailsManager();
     }
 
     private List<String> parseAllowedOrigins() {

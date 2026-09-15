@@ -1,5 +1,7 @@
 package com.authapp.security;
 
+import com.authapp.entity.User;
+import com.authapp.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,9 +28,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String AUTHENTICATED_ROLE_ATTR = "authenticatedRole";
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -52,8 +56,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Validate token
             if (jwtUtil.validateToken(jwt) && !jwtUtil.isTokenExpired(jwt)) {
                 Long userId = jwtUtil.extractUserId(jwt);
-                String username = jwtUtil.extractUsername(jwt);
-                String role = jwtUtil.extractRole(jwt);
+                User currentUser = userRepository.findById(userId).orElse(null);
+                if (currentUser == null || currentUser.getRole() == null) {
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                // Do not trust a stale role embedded in a long-lived token.
+                // The current database role is authoritative so demotions and
+                // deleted users take effect immediately.
+                String username = currentUser.getUsername();
+                String role = currentUser.getRole().name();
                 request.setAttribute(AUTHENTICATED_USER_ID_ATTR, userId);
                 request.setAttribute(AUTHENTICATED_ROLE_ATTR, role);
 

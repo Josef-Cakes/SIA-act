@@ -19,4 +19,5 @@ public class InventoryBatchDTO {
     private Integer currentCount;
     private LocalDate arrivalDate;
     private Long ageInDays;
+    private String qrCode;
 }

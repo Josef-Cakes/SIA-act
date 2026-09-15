@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 
 import jakarta.persistence.EntityNotFoundException;
 import java.util.HashMap;
@@ -226,6 +229,48 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    /**
+     * Includes duplicate idempotency keys and other database uniqueness
+     * conflicts. Returning 409 lets a mobile client distinguish a conflict
+     * from malformed input and decide whether to reconcile or retry.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, WebRequest request) {
+
+        String path = request.getDescription(false).replace("uri=", "");
+        logger.warn("Data integrity conflict for URI: {}", path);
+
+        ErrorResponse errorResponse = ErrorResponse.of(
+                "The operation conflicts with an existing record.",
+                "DATA_CONFLICT",
+                HttpStatus.CONFLICT.value(),
+                path
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+    @ExceptionHandler({
+            ObjectOptimisticLockingFailureException.class,
+            PessimisticLockingFailureException.class
+    })
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleInventoryConcurrencyConflict(
+            RuntimeException ex, WebRequest request) {
+
+        String path = request.getDescription(false).replace("uri=", "");
+        logger.warn("Concurrent update conflict for URI: {}", path);
+        ErrorResponse errorResponse = ErrorResponse.of(
+                "This record changed while you were saving. Refresh the batch and try again.",
+                "CONCURRENT_UPDATE",
+                HttpStatus.CONFLICT.value(),
+                path
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 
     /**

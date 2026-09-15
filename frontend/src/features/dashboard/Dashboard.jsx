@@ -16,7 +16,10 @@ import {
 import Spinner from '../../components/Spinner';
 import ToastMessage from '../../components/ToastMessage';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+ HEAD
+import { buildBackendUrl } from '../../config/backendOrigin';
 import { resolveBackendUrl } from '../../config/env';
+origin/main
 import { getProfilePhotoUrl } from '../auth/authService';
 import { useAuth } from '../../context/AuthContext';
 import { useLogoutAction } from '../auth/useLogout';
@@ -41,7 +44,12 @@ function toTitleCase(value) {
 }
 
 function resolveAvatarUrl(url) {
+HEAD
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return buildBackendUrl(url);
   return resolveBackendUrl(url) || null;
+origin/main
 }
 
 function getErrorMessage(error, fallbackMessage = 'Something went wrong.') {

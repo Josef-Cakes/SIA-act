@@ -356,12 +356,12 @@ public class AdminManagementService {
                 .orElseThrow(() -> new EntityNotFoundException("Livestock type not found."));
 
         List<Batch> batches = batchRepository.findByLivestockIdOrderByCreatedAtDesc(livestockId);
-        for (Batch batch : batches) {
-            eventRepository.deleteAllByBatchId(batch.getId());
-            saleRepository.detachBatchReferences(batch.getId());
+        if (!batches.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Livestock species with batch history cannot be deleted. Archive or deactivate its batches instead."
+            );
         }
 
-        batchRepository.deleteAllByLivestockId(livestockId);
         livestockRepository.delete(livestock);
 
         eventLogger.logActivity(
@@ -392,7 +392,8 @@ public class AdminManagementService {
                 batch.getStatus(),
                 handler != null ? handler.getId() : null,
                 handler != null ? handler.getFullName() : null,
-                handler != null ? handler.getUsername() : null
+                handler != null ? handler.getUsername() : null,
+                batch.getQrCode()
         );
     }
 

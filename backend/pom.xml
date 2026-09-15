@@ -55,6 +55,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Versioned production schema migrations. Local development can
+             keep FLYWAY_ENABLED=false while the existing schema is explored. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- Spring Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

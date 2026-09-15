@@ -52,6 +52,9 @@ public class FarmVilleDataInitializer implements CommandLineRunner {
         createEventTypeIfNotExists("VACCINATION", "Vaccination", false, 0);
         createEventTypeIfNotExists("HEALTH_CHECK", "Health Inspection", false, 0);
         createEventTypeIfNotExists("CLEANING", "Cleaning Activity", false, 0);
+        createEventTypeIfNotExists("CORRECTION_INCREASE", "Inventory Correction (+)", true, 1);
+        createEventTypeIfNotExists("CORRECTION_DECREASE", "Inventory Correction (-)", true, -1);
+        createEventTypeIfNotExists("CORRECTION_NOTE", "Operational Correction", false, 0);
 
         log.info("✓ Default EventTypes initialized successfully");
     }

@@ -6,7 +6,6 @@ import com.authapp.repository.ActivityLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +16,6 @@ public class EventLogger {
 
     private final ActivityLogRepository activityLogRepository;
 
-    @Async
     @Transactional
     @CacheEvict(value = CacheNames.FARM_DATA, allEntries = true)
     public void logActivity(Long userId, String action, Long targetId, String ipAddress) {
